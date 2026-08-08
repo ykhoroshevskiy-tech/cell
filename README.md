@@ -86,6 +86,17 @@ Artifact pins (defaults are fixed for reproducible bootstrap; override to change
 
 Path overrides (`CELL_KERNEL_PATH`, `CELL_FIRECRACKER_BIN`, `CELL_SQUASHFS_PATH`) still win when the file already exists.
 
+In-guest agent (vendor-neutral; **defaults install OpenCode**):
+
+| Setting | Default |
+|---------|---------|
+| `CELL_AGENT_URL` | OpenCode release tarball (`…/opencode-{target}.tar.gz`); empty skips install |
+| `CELL_AGENT_BIN` | `opencode` |
+| `CELL_AGENT_CMD` | `opencode --auto` |
+| `CELL_TMUX_SESSION_NAME` | `agent` |
+
+`{target}` in the URL is replaced with `linux-x64-baseline` / `linux-arm64-baseline`.
+
 Runtime:
 
 | Setting                  | Default           |

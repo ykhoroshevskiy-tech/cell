@@ -1,3 +1,6 @@
+# Local / recovered design docs (not published with the repo)
+docs/
+
 # Binaries
 /cell
 /bin/

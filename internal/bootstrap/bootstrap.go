@@ -174,7 +174,7 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 	}
 	if needsRootfs {
 		fmt.Printf("Building rootfs from %s…\n", cfg.SquashfsPath)
-		if err := buildRootfs(cfg.SquashfsPath, cfg.RootfsPath, initScriptsDir, cfg.ImagesDir, rootfsSizeMB(cfg)); err != nil {
+		if err := buildRootfs(cfg, rootfsSizeMB(cfg)); err != nil {
 			return err
 		}
 		if err := writeRootfsSquashfsStamp(cfg.RootfsPath, squashfsBuildStamp(cfg)); err != nil {
@@ -222,7 +222,11 @@ func rootfsSizeMB(cfg *config.CellConfig) int {
 	return n
 }
 
-func buildRootfs(squashfsPath, rootfsPath, initScriptsDir, imagesDir string, sizeMB int) error {
+func buildRootfs(cfg *config.CellConfig, sizeMB int) error {
+	squashfsPath := cfg.SquashfsPath
+	rootfsPath := cfg.RootfsPath
+	imagesDir := cfg.ImagesDir
+	initScriptsDir := filepath.Join(cfg.DataDir, "init-scripts")
 	workDir, err := os.MkdirTemp("", "cell-rootfs-*")
 	if err != nil {
 		return err
@@ -244,7 +248,7 @@ func buildRootfs(squashfsPath, rootfsPath, initScriptsDir, imagesDir string, siz
 	}
 
 	// DNS kept for any future in-chroot network need; current apt-free path
-	// fetches debs and OpenCode on the host.
+	// fetches debs and optional agent tarball on the host.
 	if resolv, err := os.ReadFile("/etc/resolv.conf"); err == nil {
 		_ = os.MkdirAll(filepath.Join(root, "etc"), 0755)
 		_ = os.WriteFile(filepath.Join(root, "etc", "resolv.conf"), resolv, 0644)
@@ -277,7 +281,7 @@ func buildRootfs(squashfsPath, rootfsPath, initScriptsDir, imagesDir string, siz
 	}
 
 	guestInitDir := filepath.Join(root, "opt", "guest-init")
-	for _, name := range []string{"guest-entry.sh", "tmux-attach-opencode.sh"} {
+	for _, name := range []string{"guest-entry.sh", "tmux-attach.sh"} {
 		content, err := guestinit.Scripts.ReadFile(name)
 		if err != nil {
 			return err
@@ -336,10 +340,14 @@ fi
 		return fmt.Errorf("chroot customize: %w", err)
 	}
 
-	fmt.Println("installing opencode (host download)…")
-	if err := installOpenCodeHostSide(root, imagesDir); err != nil {
-		fmt.Printf("  opencode download failed: %v; installing stub\n", err)
-		writeOpenCodeStub(root)
+	if strings.TrimSpace(cfg.AgentURL) == "" {
+		fmt.Println("agent install skipped (CELL_AGENT_URL empty)")
+	} else {
+		fmt.Printf("installing agent %q (host download)…\n", cfg.AgentBin)
+		if err := installAgentHostSide(root, imagesDir, cfg.AgentURL, cfg.AgentBin); err != nil {
+			fmt.Printf("  agent download failed: %v; installing stub\n", err)
+			writeAgentStub(root, cfg.AgentBin)
+		}
 	}
 
 	// Unmount before mkfs.ext4 -d — populate must not walk mounted /proc,/sys,/dev,/tmp.
@@ -380,19 +388,27 @@ fi
 	return nil
 }
 
-func installOpenCodeHostSide(root, imagesDir string) error {
-	target := ""
+func agentDownloadTarget() (string, error) {
 	switch runtime.GOARCH {
 	case "amd64":
-		target = "linux-x64-baseline"
+		return "linux-x64-baseline", nil
 	case "arm64":
-		target = "linux-arm64-baseline"
+		return "linux-arm64-baseline", nil
+	default:
+		return "", fmt.Errorf("unsupported arch %s", runtime.GOARCH)
 	}
-	if target == "" {
-		return fmt.Errorf("unsupported arch %s", runtime.GOARCH)
+}
+
+func installAgentHostSide(root, imagesDir, urlTemplate, binName string) error {
+	if binName == "" {
+		return fmt.Errorf("agent_bin is empty")
 	}
-	url := "https://github.com/anomalyco/opencode/releases/latest/download/opencode-" + target + ".tar.gz"
-	cache := filepath.Join(imagesDir, "opencode-"+target+".tar.gz")
+	target, err := agentDownloadTarget()
+	if err != nil {
+		return err
+	}
+	url := strings.ReplaceAll(urlTemplate, "{target}", target)
+	cache := filepath.Join(imagesDir, binName+"-"+target+".tar.gz")
 	if err := os.MkdirAll(imagesDir, 0755); err != nil {
 		return err
 	}
@@ -405,35 +421,36 @@ func installOpenCodeHostSide(root, imagesDir string) error {
 		fmt.Printf("  using cached %s (%s)\n", cache, humanSize(st.Size()))
 	}
 
-	tmp, err := os.MkdirTemp("", "cell-opencode-*")
+	tmp, err := os.MkdirTemp("", "cell-agent-*")
 	if err != nil {
 		return err
 	}
 	defer os.RemoveAll(tmp)
 	if err := runCmd("tar", "-xzf", cache, "-C", tmp); err != nil {
 		_ = os.Remove(cache) // corrupt cache → refetch next time
-		return fmt.Errorf("extract opencode: %w", err)
+		return fmt.Errorf("extract agent: %w", err)
 	}
-	src := filepath.Join(tmp, "opencode")
+	src := filepath.Join(tmp, binName)
 	if st, err := os.Stat(src); err != nil || st.IsDir() {
-		return fmt.Errorf("opencode binary missing in tarball")
+		return fmt.Errorf("agent binary %q missing in tarball", binName)
 	}
-	binDir := filepath.Join(root, "opt", "opencode", "bin")
+	binDir := filepath.Join(root, "opt", "agent", "bin")
 	if err := os.MkdirAll(binDir, 0755); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Join(root, "usr", "local", "bin"), 0755); err != nil {
 		return err
 	}
-	if err := runCmd("install", "-m", "755", src, filepath.Join(binDir, "opencode")); err != nil {
-		return fmt.Errorf("install opencode binary: %w", err)
+	dst := filepath.Join(binDir, binName)
+	if err := runCmd("install", "-m", "755", src, dst); err != nil {
+		return fmt.Errorf("install agent binary: %w", err)
 	}
-	link := filepath.Join(root, "usr", "local", "bin", "opencode")
+	link := filepath.Join(root, "usr", "local", "bin", binName)
 	_ = os.Remove(link)
-	if err := os.Symlink("/opt/opencode/bin/opencode", link); err != nil {
+	if err := os.Symlink("/opt/agent/bin/"+binName, link); err != nil {
 		return err
 	}
-	fmt.Println("  opencode installed")
+	fmt.Printf("  agent %q installed\n", binName)
 	return nil
 }
 
@@ -471,10 +488,14 @@ func curlDownloadRetry(dst, url string, attempts int) error {
 	return fmt.Errorf("failed after %d attempts: %w", attempts, lastErr)
 }
 
-func writeOpenCodeStub(root string) {
-	stub := filepath.Join(root, "usr", "local", "bin", "opencode")
+func writeAgentStub(root, binName string) {
+	if binName == "" {
+		binName = "agent"
+	}
+	stub := filepath.Join(root, "usr", "local", "bin", binName)
 	_ = os.MkdirAll(filepath.Dir(stub), 0755)
-	_ = os.WriteFile(stub, []byte("#!/bin/sh\necho \"[opencode stub] install failed during bootstrap; run: cell bootstrap --force\" >&2\nexec /bin/zsh\n"), 0755)
+	body := "#!/bin/sh\necho \"[agent stub] install failed during bootstrap; run: cell bootstrap --force\" >&2\nexec /bin/zsh\n"
+	_ = os.WriteFile(stub, []byte(body), 0755)
 }
 
 // debPkg is a jammy package to extract into the guest rootfs without apt/dpkg DB.

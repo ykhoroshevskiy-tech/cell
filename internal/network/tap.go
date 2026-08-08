@@ -63,7 +63,7 @@ func setupFirewall(cfg *models.NetworkConfig) error {
 	}
 	rules := [][]string{
 		{"-I", "INPUT", "1", "-s", gi, "-m", "conntrack", "--ctstate", "ESTABLISHED,RELATED", "-j", "ACCEPT"},
-		// Guest OpenCode → infra-proxy on host (default port 8080).
+		// Guest agent traffic → infra-proxy on host (default port 8080).
 		{"-I", "INPUT", "2", "-s", gi, "-d", hi, "-p", "tcp", "--dport", "8080", "-j", "ACCEPT"},
 		{"-I", "INPUT", "3", "-s", gi, "-j", "DROP"},
 	}
