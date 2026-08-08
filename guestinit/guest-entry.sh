@@ -5,7 +5,7 @@ PROJECT_DISK="${PROJECT_DISK:-/dev/vdb}"
 MOUNT="/project"
 REPO_DIR="${MOUNT}"
 AGENT_USER="${AGENT_USER:-agent}"
-TMUX_SESSION="${TMUX_SESSION:-opencode}"
+TMUX_SESSION="${TMUX_SESSION:-agent}"
 
 log() { echo "[guest-init] $*"; }
 
@@ -97,12 +97,6 @@ export BUN_TMPDIR=/tmp
 export npm_config_cache=/tmp/npm-cache
 export PATH=/usr/local/bin:/usr/bin:/bin
 mkdir -p /tmp/npm-cache 2>/dev/null || true
-EOF
-  mkdir -p "${RW}/.config/opencode"
-  cat > "${RW}/.config/opencode/opencode.json" <<'EOF'
-{
-  "plugin": ["superpowers@git+https://github.com/obra/superpowers.git"]
-}
 EOF
   if ! mountpoint -q "${AGENT_HOME}"; then
     mount --bind "${RW}" "${AGENT_HOME}"

@@ -20,7 +20,7 @@ func Execute() error {
 func newRootCmd(cfg *config.CellConfig) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "cell",
-		Short:         "OpenCode microVM runtime manager",
+		Short:         "Coding-agent microVM runtime manager",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {

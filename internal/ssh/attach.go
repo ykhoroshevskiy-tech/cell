@@ -168,9 +168,11 @@ func Attach(session *models.SessionRecord, cfg *config.CellConfig) error {
 	if session.SSHKeyPath == "" || session.NetworkConfig == nil {
 		return fmt.Errorf("session missing ssh key or network config")
 	}
+	// Single-quote AGENT_CMD so spaces survive the remote shell.
+	cmdQuoted := "'" + strings.ReplaceAll(cfg.AgentCmd, "'", `'\''`) + "'"
 	remote := fmt.Sprintf(
-		"TMUX_SESSION=%s REPO_DIR=%s %s",
-		cfg.TmuxSessionName, cfg.GuestRepoDir, cfg.GuestAttachScript,
+		"TMUX_SESSION=%s REPO_DIR=%s AGENT_BIN=%s AGENT_CMD=%s %s",
+		cfg.TmuxSessionName, cfg.GuestRepoDir, cfg.AgentBin, cmdQuoted, cfg.GuestAttachScript,
 	)
 	args := append([]string{"-t"}, sshBaseArgs(session.SSHKeyPath)...)
 	args = append(args,

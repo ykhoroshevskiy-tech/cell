@@ -39,6 +39,10 @@ type CellConfig struct {
 	KernelVersion       string        `mapstructure:"kernel_version"`
 	FirecrackerVersion  string        `mapstructure:"firecracker_version"`
 	SquashfsVersion     string        `mapstructure:"squashfs_version"`
+	// Agent install/attach (vendor-neutral; defaults target OpenCode).
+	AgentURL string `mapstructure:"agent_url"` // empty = skip install; may contain {target}
+	AgentBin string `mapstructure:"agent_bin"` // binary name inside tarball and on PATH
+	AgentCmd string `mapstructure:"agent_cmd"` // command run in tmux on attach
 }
 
 func managedSquashfsPath(imagesDir, version string) string {
@@ -65,10 +69,10 @@ func Default() *CellConfig {
 		SSHReadyTimeoutSec:  90 * time.Second,
 		GuestProjectMount:   "/project",
 		GuestRepoDir:        "/project",
-		GuestAttachScript:   "/opt/guest-init/tmux-attach-opencode.sh",
+		GuestAttachScript:   "/opt/guest-init/tmux-attach.sh",
 		GuestProjectDevice:  "/dev/vdb",
 		SSHUser:             "agent",
-		TmuxSessionName:     "opencode",
+		TmuxSessionName:     "agent",
 		IncludeGit:          true,
 		ExcludePatterns:     defaultExcludePatterns(),
 		AutoPull:            true,
@@ -78,6 +82,9 @@ func Default() *CellConfig {
 		KernelVersion:       "6.1.176",
 		FirecrackerVersion:  "v1.16.1",
 		SquashfsVersion:     "24.04",
+		AgentURL:            "https://github.com/anomalyco/opencode/releases/latest/download/opencode-{target}.tar.gz",
+		AgentBin:            "opencode",
+		AgentCmd:            "opencode --auto",
 	}
 }
 
@@ -111,6 +118,7 @@ func Load() (*CellConfig, error) {
 		"ssh_user", "tmux_session_name", "include_git", "exclude_patterns",
 		"auto_pull", "auto_pull_interval_sec", "rebuild_rootfs", "ssh_public_key",
 		"ci_prefix", "kernel_version", "firecracker_version", "squashfs_version",
+		"agent_url", "agent_bin", "agent_cmd",
 	}
 	for _, k := range keys {
 		_ = v.BindEnv(k)
@@ -140,6 +148,9 @@ func Load() (*CellConfig, error) {
 	v.SetDefault("kernel_version", def.KernelVersion)
 	v.SetDefault("firecracker_version", def.FirecrackerVersion)
 	v.SetDefault("squashfs_version", def.SquashfsVersion)
+	v.SetDefault("agent_url", def.AgentURL)
+	v.SetDefault("agent_bin", def.AgentBin)
+	v.SetDefault("agent_cmd", def.AgentCmd)
 
 	cfg := &CellConfig{}
 	if err := v.Unmarshal(cfg); err != nil {
@@ -181,5 +192,19 @@ func Load() (*CellConfig, error) {
 	if cfg.SquashfsPath == "" {
 		cfg.SquashfsPath = managedSquashfsPath(cfg.ImagesDir, cfg.SquashfsVersion)
 	}
+	if cfg.GuestAttachScript == "" {
+		cfg.GuestAttachScript = def.GuestAttachScript
+	}
+	if cfg.TmuxSessionName == "" {
+		cfg.TmuxSessionName = def.TmuxSessionName
+	}
+	if cfg.AgentBin == "" {
+		cfg.AgentBin = def.AgentBin
+	}
+	if cfg.AgentCmd == "" {
+		cfg.AgentCmd = def.AgentCmd
+	}
+	// AgentURL: empty after env means skip install; only fill default when unset via SetDefault.
+	// viper leaves "" if CELL_AGENT_URL="" intentionally — do not replace empty with default here.
 	return cfg, nil
 }
