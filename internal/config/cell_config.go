@@ -35,6 +35,10 @@ type CellConfig struct {
 	AutoPullIntervalSec  int           `mapstructure:"auto_pull_interval_sec"`
 	RebuildRootfs        bool          `mapstructure:"rebuild_rootfs"`
 	SSHPublicKey         string        `mapstructure:"ssh_public_key"`
+	CIPrefix             string        `mapstructure:"ci_prefix"`
+	KernelVersion        string        `mapstructure:"kernel_version"`
+	FirecrackerVersion   string        `mapstructure:"firecracker_version"`
+	SquashfsVersion      string        `mapstructure:"squashfs_version"`
 }
 
 func Default() *CellConfig {
@@ -49,7 +53,7 @@ func Default() *CellConfig {
 		FirecrackerBin:      filepath.Join(imagesDir, "bin", "firecracker"),
 		KernelPath:          filepath.Join(imagesDir, "vmlinux"),
 		RootfsPath:          filepath.Join(imagesDir, "rootfs.ext4"),
-		SquashfsPath:        filepath.Join(imagesDir, "ubuntu-22.04.squashfs"),
+		SquashfsPath:        filepath.Join(imagesDir, "ubuntu-24.04.squashfs"),
 		VCPUCount:           4,
 		MemSizeMiB:          8192,
 		ProjectDiskSizeMB:   1024,
@@ -66,6 +70,10 @@ func Default() *CellConfig {
 		AutoPull:            true,
 		AutoPullIntervalSec: 30,
 		RebuildRootfs:       false,
+		CIPrefix:            "firecracker-ci/20260708-f11c230ed107-0/",
+		KernelVersion:       "6.1.176",
+		FirecrackerVersion:  "v1.16.1",
+		SquashfsVersion:     "24.04",
 	}
 }
 
@@ -98,6 +106,7 @@ func Load() (*CellConfig, error) {
 		"guest_project_mount", "guest_repo_dir", "guest_attach_script", "guest_project_device",
 		"ssh_user", "tmux_session_name", "include_git", "exclude_patterns",
 		"auto_pull", "auto_pull_interval_sec", "rebuild_rootfs", "ssh_public_key",
+		"ci_prefix", "kernel_version", "firecracker_version", "squashfs_version",
 	}
 	for _, k := range keys {
 		_ = v.BindEnv(k)
@@ -123,6 +132,10 @@ func Load() (*CellConfig, error) {
 	v.SetDefault("auto_pull_interval_sec", def.AutoPullIntervalSec)
 	v.SetDefault("rebuild_rootfs", def.RebuildRootfs)
 	v.SetDefault("ssh_public_key", def.SSHPublicKey)
+	v.SetDefault("ci_prefix", def.CIPrefix)
+	v.SetDefault("kernel_version", def.KernelVersion)
+	v.SetDefault("firecracker_version", def.FirecrackerVersion)
+	v.SetDefault("squashfs_version", def.SquashfsVersion)
 
 	cfg := &CellConfig{}
 	if err := v.Unmarshal(cfg); err != nil {
@@ -150,7 +163,19 @@ func Load() (*CellConfig, error) {
 		cfg.RootfsPath = filepath.Join(cfg.ImagesDir, "rootfs.ext4")
 	}
 	if cfg.SquashfsPath == "" {
-		cfg.SquashfsPath = filepath.Join(cfg.ImagesDir, "ubuntu-22.04.squashfs")
+		cfg.SquashfsPath = filepath.Join(cfg.ImagesDir, "ubuntu-24.04.squashfs")
+	}
+	if cfg.CIPrefix == "" {
+		cfg.CIPrefix = def.CIPrefix
+	}
+	if cfg.KernelVersion == "" {
+		cfg.KernelVersion = def.KernelVersion
+	}
+	if cfg.FirecrackerVersion == "" {
+		cfg.FirecrackerVersion = def.FirecrackerVersion
+	}
+	if cfg.SquashfsVersion == "" {
+		cfg.SquashfsVersion = def.SquashfsVersion
 	}
 	return cfg, nil
 }

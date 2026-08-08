@@ -54,7 +54,55 @@ func TestLoadDerivesArtifactPathsFromImagesDir(t *testing.T) {
 	if cfg.FirecrackerBin != "/tmp/cell-images/bin/firecracker" {
 		t.Fatalf("FirecrackerBin = %q, want %q", cfg.FirecrackerBin, "/tmp/cell-images/bin/firecracker")
 	}
-	if cfg.SquashfsPath != "/tmp/cell-images/ubuntu-22.04.squashfs" {
-		t.Fatalf("SquashfsPath = %q, want %q", cfg.SquashfsPath, "/tmp/cell-images/ubuntu-22.04.squashfs")
+	if cfg.SquashfsPath != "/tmp/cell-images/ubuntu-24.04.squashfs" {
+		t.Fatalf("SquashfsPath = %q, want %q", cfg.SquashfsPath, "/tmp/cell-images/ubuntu-24.04.squashfs")
+	}
+}
+
+func TestLoadArtifactPinDefaults(t *testing.T) {
+	t.Setenv("CELL_CI_PREFIX", "")
+	t.Setenv("CELL_KERNEL_VERSION", "")
+	t.Setenv("CELL_FIRECRACKER_VERSION", "")
+	t.Setenv("CELL_SQUASHFS_VERSION", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.CIPrefix != "firecracker-ci/20260708-f11c230ed107-0/" {
+		t.Fatalf("CIPrefix = %q", cfg.CIPrefix)
+	}
+	if cfg.KernelVersion != "6.1.176" {
+		t.Fatalf("KernelVersion = %q", cfg.KernelVersion)
+	}
+	if cfg.FirecrackerVersion != "v1.16.1" {
+		t.Fatalf("FirecrackerVersion = %q", cfg.FirecrackerVersion)
+	}
+	if cfg.SquashfsVersion != "24.04" {
+		t.Fatalf("SquashfsVersion = %q", cfg.SquashfsVersion)
+	}
+}
+
+func TestLoadArtifactPinEnvOverrides(t *testing.T) {
+	t.Setenv("CELL_CI_PREFIX", "firecracker-ci/20260624-ce269725504a-0/")
+	t.Setenv("CELL_KERNEL_VERSION", "6.1.174")
+	t.Setenv("CELL_FIRECRACKER_VERSION", "v1.16.0")
+	t.Setenv("CELL_SQUASHFS_VERSION", "22.04")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.CIPrefix != "firecracker-ci/20260624-ce269725504a-0/" {
+		t.Fatalf("CIPrefix = %q", cfg.CIPrefix)
+	}
+	if cfg.KernelVersion != "6.1.174" {
+		t.Fatalf("KernelVersion = %q", cfg.KernelVersion)
+	}
+	if cfg.FirecrackerVersion != "v1.16.0" {
+		t.Fatalf("FirecrackerVersion = %q", cfg.FirecrackerVersion)
+	}
+	if cfg.SquashfsVersion != "22.04" {
+		t.Fatalf("SquashfsVersion = %q", cfg.SquashfsVersion)
 	}
 }
