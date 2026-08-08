@@ -20,7 +20,7 @@ import (
 
 func artifactReady(path string) bool {
 	st, err := os.Stat(path)
-	return err == nil && st.Size() > 0
+	return err == nil && !st.IsDir() && st.Size() > 0
 }
 
 func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
