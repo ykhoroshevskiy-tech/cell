@@ -33,45 +33,40 @@ type s3ListBucketResult struct {
 	} `xml:"Contents"`
 }
 
-func resolveArtifacts(arch string) (Artifact, Artifact, Artifact, error) {
-	prefixes, err := listS3Prefixes("firecracker-ci/")
-	if err != nil {
-		return Artifact{}, Artifact{}, Artifact{}, err
+type ArtifactPins struct {
+	CIPrefix           string
+	KernelVersion      string
+	FirecrackerVersion string
+	SquashfsVersion    string
+}
+
+func resolveArtifacts(arch string, pins ArtifactPins) (Artifact, Artifact, Artifact, error) {
+	if arch == "" {
+		return Artifact{}, Artifact{}, Artifact{}, fmt.Errorf("arch is empty")
 	}
-	prefix, err := selectLatestCIPrefix(prefixes)
-	if err != nil {
-		return Artifact{}, Artifact{}, Artifact{}, err
+	if pins.CIPrefix == "" || pins.KernelVersion == "" || pins.FirecrackerVersion == "" || pins.SquashfsVersion == "" {
+		return Artifact{}, Artifact{}, Artifact{}, fmt.Errorf("incomplete artifact pins: ci_prefix=%q kernel=%q firecracker=%q squashfs=%q",
+			pins.CIPrefix, pins.KernelVersion, pins.FirecrackerVersion, pins.SquashfsVersion)
 	}
-	keys, err := listS3Keys(prefix + arch + "/")
-	if err != nil {
-		return Artifact{}, Artifact{}, Artifact{}, err
-	}
-	kernelKey, kernelVersion, err := selectLatestKernelKey(keys)
-	if err != nil {
-		return Artifact{}, Artifact{}, Artifact{}, err
-	}
-	squashKey, squashVersion, err := selectLatestSquashfsKey(keys)
-	if err != nil {
-		return Artifact{}, Artifact{}, Artifact{}, err
-	}
-	fcVersion, err := latestFirecrackerReleaseTag()
-	if err != nil {
-		return Artifact{}, Artifact{}, Artifact{}, err
+	prefix := pins.CIPrefix
+	if !strings.HasSuffix(prefix, "/") {
+		prefix += "/"
 	}
 	kernel := Artifact{
 		Name:    "kernel",
-		Version: kernelVersion,
-		URL:     specS3Base + "/" + kernelKey,
+		Version: pins.KernelVersion,
+		URL:     fmt.Sprintf("%s/%s%s/vmlinux-%s", specS3Base, prefix, arch, pins.KernelVersion),
 	}
 	firecracker := Artifact{
 		Name:    "firecracker",
-		Version: fcVersion,
-		URL:     fmt.Sprintf("https://github.com/firecracker-microvm/firecracker/releases/download/%s/firecracker-%s-%s.tgz", fcVersion, fcVersion, arch),
+		Version: pins.FirecrackerVersion,
+		URL:     fmt.Sprintf("https://github.com/firecracker-microvm/firecracker/releases/download/%s/firecracker-%s-%s.tgz",
+			pins.FirecrackerVersion, pins.FirecrackerVersion, arch),
 	}
 	squashfs := Artifact{
 		Name:    "ubuntu-squashfs",
-		Version: squashVersion,
-		URL:     specS3Base + "/" + squashKey,
+		Version: pins.SquashfsVersion,
+		URL:     fmt.Sprintf("%s/%s%s/ubuntu-%s.squashfs", specS3Base, prefix, arch, pins.SquashfsVersion),
 	}
 	return kernel, firecracker, squashfs, nil
 }
