@@ -10,35 +10,39 @@ import (
 )
 
 type CellConfig struct {
-	RuntimeRoot          string        `mapstructure:"runtime_root"`
-	DataDir              string        `mapstructure:"data_dir"`
-	ImagesDir            string        `mapstructure:"images_dir"`
-	SessionDataDir       string        `mapstructure:"session_data_dir"`
-	FirecrackerBin       string        `mapstructure:"firecracker_bin"`
-	KernelPath           string        `mapstructure:"kernel_path"`
-	RootfsPath           string        `mapstructure:"rootfs_path"`
-	SquashfsPath         string        `mapstructure:"squashfs_path"`
-	VCPUCount            int           `mapstructure:"vcpu_count"`
-	MemSizeMiB           int           `mapstructure:"mem_size_mib"`
-	ProjectDiskSizeMB    int           `mapstructure:"project_disk_size_mb"`
-	BootTimeoutSec       time.Duration `mapstructure:"boot_timeout_sec"`
-	SSHReadyTimeoutSec   time.Duration `mapstructure:"ssh_ready_timeout_sec"`
-	GuestProjectMount    string        `mapstructure:"guest_project_mount"`
-	GuestRepoDir         string        `mapstructure:"guest_repo_dir"`
-	GuestAttachScript    string        `mapstructure:"guest_attach_script"`
-	GuestProjectDevice   string        `mapstructure:"guest_project_device"`
-	SSHUser              string        `mapstructure:"ssh_user"`
-	TmuxSessionName      string        `mapstructure:"tmux_session_name"`
-	IncludeGit           bool          `mapstructure:"include_git"`
-	ExcludePatterns      []string      `mapstructure:"exclude_patterns"`
-	AutoPull             bool          `mapstructure:"auto_pull"`
-	AutoPullIntervalSec  int           `mapstructure:"auto_pull_interval_sec"`
-	RebuildRootfs        bool          `mapstructure:"rebuild_rootfs"`
-	SSHPublicKey         string        `mapstructure:"ssh_public_key"`
-	CIPrefix             string        `mapstructure:"ci_prefix"`
-	KernelVersion        string        `mapstructure:"kernel_version"`
-	FirecrackerVersion   string        `mapstructure:"firecracker_version"`
-	SquashfsVersion      string        `mapstructure:"squashfs_version"`
+	RuntimeRoot         string        `mapstructure:"runtime_root"`
+	DataDir             string        `mapstructure:"data_dir"`
+	ImagesDir           string        `mapstructure:"images_dir"`
+	SessionDataDir      string        `mapstructure:"session_data_dir"`
+	FirecrackerBin      string        `mapstructure:"firecracker_bin"`
+	KernelPath          string        `mapstructure:"kernel_path"`
+	RootfsPath          string        `mapstructure:"rootfs_path"`
+	SquashfsPath        string        `mapstructure:"squashfs_path"`
+	VCPUCount           int           `mapstructure:"vcpu_count"`
+	MemSizeMiB          int           `mapstructure:"mem_size_mib"`
+	ProjectDiskSizeMB   int           `mapstructure:"project_disk_size_mb"`
+	BootTimeoutSec      time.Duration `mapstructure:"boot_timeout_sec"`
+	SSHReadyTimeoutSec  time.Duration `mapstructure:"ssh_ready_timeout_sec"`
+	GuestProjectMount   string        `mapstructure:"guest_project_mount"`
+	GuestRepoDir        string        `mapstructure:"guest_repo_dir"`
+	GuestAttachScript   string        `mapstructure:"guest_attach_script"`
+	GuestProjectDevice  string        `mapstructure:"guest_project_device"`
+	SSHUser             string        `mapstructure:"ssh_user"`
+	TmuxSessionName     string        `mapstructure:"tmux_session_name"`
+	IncludeGit          bool          `mapstructure:"include_git"`
+	ExcludePatterns     []string      `mapstructure:"exclude_patterns"`
+	AutoPull            bool          `mapstructure:"auto_pull"`
+	AutoPullIntervalSec int           `mapstructure:"auto_pull_interval_sec"`
+	RebuildRootfs       bool          `mapstructure:"rebuild_rootfs"`
+	SSHPublicKey        string        `mapstructure:"ssh_public_key"`
+	CIPrefix            string        `mapstructure:"ci_prefix"`
+	KernelVersion       string        `mapstructure:"kernel_version"`
+	FirecrackerVersion  string        `mapstructure:"firecracker_version"`
+	SquashfsVersion     string        `mapstructure:"squashfs_version"`
+}
+
+func managedSquashfsPath(imagesDir, version string) string {
+	return filepath.Join(imagesDir, "ubuntu-"+version+".squashfs")
 }
 
 func Default() *CellConfig {
@@ -53,7 +57,7 @@ func Default() *CellConfig {
 		FirecrackerBin:      filepath.Join(imagesDir, "bin", "firecracker"),
 		KernelPath:          filepath.Join(imagesDir, "vmlinux"),
 		RootfsPath:          filepath.Join(imagesDir, "rootfs.ext4"),
-		SquashfsPath:        filepath.Join(imagesDir, "ubuntu-24.04.squashfs"),
+		SquashfsPath:        managedSquashfsPath(imagesDir, "24.04"),
 		VCPUCount:           4,
 		MemSizeMiB:          8192,
 		ProjectDiskSizeMB:   1024,
@@ -162,9 +166,6 @@ func Load() (*CellConfig, error) {
 	if cfg.RootfsPath == "" {
 		cfg.RootfsPath = filepath.Join(cfg.ImagesDir, "rootfs.ext4")
 	}
-	if cfg.SquashfsPath == "" {
-		cfg.SquashfsPath = filepath.Join(cfg.ImagesDir, "ubuntu-24.04.squashfs")
-	}
 	if cfg.CIPrefix == "" {
 		cfg.CIPrefix = def.CIPrefix
 	}
@@ -176,6 +177,9 @@ func Load() (*CellConfig, error) {
 	}
 	if cfg.SquashfsVersion == "" {
 		cfg.SquashfsVersion = def.SquashfsVersion
+	}
+	if cfg.SquashfsPath == "" {
+		cfg.SquashfsPath = managedSquashfsPath(cfg.ImagesDir, cfg.SquashfsVersion)
 	}
 	return cfg, nil
 }

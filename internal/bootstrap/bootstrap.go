@@ -23,6 +23,58 @@ func artifactReady(path string) bool {
 	return err == nil && !st.IsDir() && st.Size() > 0
 }
 
+func isCustomArtifactPath(path, managedDefault string) bool {
+	return filepath.Clean(path) != filepath.Clean(managedDefault)
+}
+
+func shouldSkipManagedArtifactDownload(configuredPath, managedDefault string, force bool) bool {
+	return !force && isCustomArtifactPath(configuredPath, managedDefault) && artifactReady(configuredPath)
+}
+
+func managedKernelPath(cfg *config.CellConfig) string {
+	return filepath.Join(cfg.ImagesDir, "vmlinux")
+}
+
+func managedFirecrackerPath(cfg *config.CellConfig) string {
+	return filepath.Join(cfg.ImagesDir, "bin", "firecracker")
+}
+
+func managedSquashfsPath(cfg *config.CellConfig) string {
+	return filepath.Join(cfg.ImagesDir, "ubuntu-"+cfg.SquashfsVersion+".squashfs")
+}
+
+func rootfsSquashfsStampPath(rootfsPath string) string {
+	return rootfsPath + ".squashfs-version"
+}
+
+func squashfsBuildStamp(cfg *config.CellConfig) string {
+	if isCustomArtifactPath(cfg.SquashfsPath, managedSquashfsPath(cfg)) {
+		return "custom:" + filepath.Clean(cfg.SquashfsPath)
+	}
+	return cfg.SquashfsVersion
+}
+
+func needsRootfsRebuild(rootfsPath, expectedStamp string, rebuildRequested bool) (bool, error) {
+	if rebuildRequested {
+		return true, nil
+	}
+	if !artifactReady(rootfsPath) {
+		return true, nil
+	}
+	data, err := os.ReadFile(rootfsSquashfsStampPath(rootfsPath))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	return strings.TrimSpace(string(data)) != expectedStamp, nil
+}
+
+func writeRootfsSquashfsStamp(rootfsPath, stamp string) error {
+	return os.WriteFile(rootfsSquashfsStampPath(rootfsPath), []byte(stamp+"\n"), 0644)
+}
+
 func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 	if err := os.MkdirAll(cfg.ImagesDir, 0755); err != nil {
 		return err
@@ -64,9 +116,10 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		_ = os.Remove(sqVersioned)
 		_ = os.Remove(fcTgz)
 		_ = os.Remove(cfg.RootfsPath)
+		_ = os.Remove(rootfsSquashfsStampPath(cfg.RootfsPath))
 	}
 
-	if !force && artifactReady(cfg.KernelPath) {
+	if shouldSkipManagedArtifactDownload(cfg.KernelPath, managedKernelPath(cfg), force) {
 		st, _ := os.Stat(cfg.KernelPath)
 		fmt.Printf("✓ kernel cached (%s)\n", humanSize(st.Size()))
 	} else {
@@ -80,7 +133,7 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		_ = ensureSymlink(cfg.KernelPath, kernelVersioned)
 	}
 
-	if !force && artifactReady(cfg.SquashfsPath) {
+	if shouldSkipManagedArtifactDownload(cfg.SquashfsPath, managedSquashfsPath(cfg), force) {
 		st, _ := os.Stat(cfg.SquashfsPath)
 		fmt.Printf("✓ squashfs cached (%s)\n", humanSize(st.Size()))
 	} else {
@@ -91,7 +144,7 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		cfg.SquashfsPath = sqVersioned
 	}
 
-	if !force && artifactReady(cfg.FirecrackerBin) {
+	if shouldSkipManagedArtifactDownload(cfg.FirecrackerBin, managedFirecrackerPath(cfg), force) {
 		st, _ := os.Stat(cfg.FirecrackerBin)
 		fmt.Printf("✓ firecracker cached (%s)\n", humanSize(st.Size()))
 	} else {
@@ -115,13 +168,16 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		_ = ensureSymlink(cfg.FirecrackerBin, fcVersioned)
 	}
 
-	needsRootfs := rebuildRootfs || cfg.RebuildRootfs
-	if st, err := os.Stat(cfg.RootfsPath); err != nil || st.Size() == 0 {
-		needsRootfs = true
+	needsRootfs, err := needsRootfsRebuild(cfg.RootfsPath, squashfsBuildStamp(cfg), rebuildRootfs || cfg.RebuildRootfs)
+	if err != nil {
+		return err
 	}
 	if needsRootfs {
 		fmt.Printf("Building rootfs from %s…\n", cfg.SquashfsPath)
 		if err := buildRootfs(cfg.SquashfsPath, cfg.RootfsPath, initScriptsDir, cfg.ImagesDir, rootfsSizeMB(cfg)); err != nil {
+			return err
+		}
+		if err := writeRootfsSquashfsStamp(cfg.RootfsPath, squashfsBuildStamp(cfg)); err != nil {
 			return err
 		}
 		rStat, _ := os.Stat(cfg.RootfsPath)
