@@ -106,3 +106,17 @@ func TestLoadArtifactPinEnvOverrides(t *testing.T) {
 		t.Fatalf("SquashfsVersion = %q", cfg.SquashfsVersion)
 	}
 }
+
+func TestLoadDerivesManagedSquashfsPathFromVersion(t *testing.T) {
+	t.Setenv("CELL_IMAGES_DIR", "/tmp/cell-images")
+	t.Setenv("CELL_SQUASHFS_VERSION", "22.04")
+	t.Setenv("CELL_SQUASHFS_PATH", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.SquashfsPath != "/tmp/cell-images/ubuntu-22.04.squashfs" {
+		t.Fatalf("SquashfsPath = %q, want %q", cfg.SquashfsPath, "/tmp/cell-images/ubuntu-22.04.squashfs")
+	}
+}
