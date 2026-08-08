@@ -1,102 +1,101 @@
 # cell
 
-A CLI manager for [OpenCode](https://github.com/sst/opencode) sessions running inside [Firecracker](https://github.com/firecracker-microvm/firecracker) microVMs.
+Run a coding agent inside a Firecracker microVM — not on your host.
 
-`cell` stages a source repository onto a project disk, boots a Firecracker microVM with a pinned kernel/rootfs, attaches via SSH into a tmux session running OpenCode, and continuously rsyncs the guest workspace back to the host.
+AI coding agents need shell access, package installs, and freedom to change files. On the host that means a large blast radius. `cell` boots a lightweight KVM microVM, puts your repo inside it, and keeps the agent’s filesystem, processes, and network away from your machine — while syncing useful work back.
+
+## Why cell
+
+- **Agent isolation** — the agent runs in its own kernel (Firecracker/KVM), not as a process or container sharing your host kernel and home directory.
+- **Bounded blast radius** — broken deps, runaway installs, and destructive commands stay in the VM.
+- **Your work comes back** — guest workspace changes sync to the host repo (rsync / auto-pull), so isolation isn’t a dead end.
+
+## How it works
+
+1. **Stage** — copy the repo onto a project disk
+2. **Boot** — start a Firecracker microVM with a pinned kernel/rootfs
+3. **Attach** — SSH into a tmux session where the agent runs
+4. **Sync** — pull guest workspace changes back to the host repo
+
+You keep working as if the agent is local; the risky part stays in the VM.
+
+## Status
+
+Early / experimental.
+
+**Tested so far only with [OpenCode](https://github.com/sst/opencode)** as the in-guest coding agent. Other agents may work later; they are not validated yet.
+
+Requires Linux with KVM. Runtime commands must run as root (`sudo cell`); `version` and `help` do not.
 
 ## Requirements
 
-- **Linux with KVM** (`/dev/kvm`). Other platforms are not supported.
-- **Root.** `cell` must run as root (`sudo cell`); `version`/`help` are the only exceptions.
-- **Go 1.26+** to build.
-- `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`, `jq` on the host.
+- Linux with KVM (`/dev/kvm`)
+- Root for runtime commands
+- Go 1.26+ to build
+- Host tools: `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`
 
-## Build
+## Build & install
 
 ```sh
 go build -o cell ./cmd/cell
+sudo install -m 755 cell /usr/bin/cell
 ```
 
 ## Quick start
 
 ```sh
-# 1. Download/build the kernel, rootfs, and firecracker binary
-sudo ./cell bootstrap
+sudo cell bootstrap
+sudo cell launch --repo /path/to/your/repo
 
-# 2. Launch a repo into a microVM and attach
-sudo ./cell launch --repo /path/to/your/repo
-
-# 3. List running sessions
-sudo ./cell ps
-
-# 4. Reattach to a session's SSH + tmux
-sudo ./cell ssh <session-id>
-
-# 5. Pull the guest workspace back to the host repo
-sudo ./cell pull <session-id>
-
-# 6. Stop one (or all) sessions
-sudo ./cell stop <session-id>
-sudo ./cell stop --all
+sudo cell ps
+sudo cell ssh <session-id>
+sudo cell pull <session-id>
+sudo cell stop <session-id>
 ```
 
 ## Commands
 
-| Command     | Description                                         |
-|-------------|-----------------------------------------------------|
-| `bootstrap` | Download/build kernel, rootfs, firecracker          |
-| `launch`    | Stage repo, boot VM, attach SSH, auto-pull          |
-| `stop`      | Stop one or all VMs                                 |
-| `ssh`       | Reattach SSH + tmux                                 |
-| `status`    | Probe VM/SSH/tmux for one session                  |
-| `verify`    | Readiness check with serial tail on failure         |
-| `logs`      | Print serial.log                                    |
-| `ps`        | List sessions                                       |
-| `pull`      | Rsync guest workspace back to host repo             |
-| `rescue`    | Extract workspace from project disk                 |
-| `version`   | Print version                                       |
+| Command     | Description                                   |
+|-------------|-----------------------------------------------|
+| `bootstrap` | Download/build kernel, rootfs, firecracker    |
+| `launch`    | Stage repo, boot VM, attach SSH, auto-pull    |
+| `stop`      | Stop one or all VMs                           |
+| `ssh`       | Reattach SSH + tmux                           |
+| `status`    | Probe VM/SSH/tmux for one session             |
+| `verify`    | Readiness check with serial tail on failure   |
+| `logs`      | Print serial.log                              |
+| `ps`        | List sessions                                 |
+| `pull`      | Rsync guest workspace back to host repo       |
+| `rescue`    | Extract workspace from project disk           |
+| `version`   | Print version                                 |
 
 Global flags: `--quiet`, `--verbose` (`-v`).
 
 ## Configuration
 
-All defaults can be overridden with `CELL_*` environment variables (e.g. `CELL_VCPU_COUNT`, `CELL_MEM_SIZE_MIB`, `CELL_DATA_DIR`). Key defaults:
+Defaults can be overridden with `CELL_*` environment variables.
 
-| Setting                 | Default                          |
-|-------------------------|----------------------------------|
-| `data_dir`              | `/var/lib/cell`                  |
-| `images_dir`            | `<data_dir>/images`              |
-| `session_data_dir`      | `<data_dir>/session-data`        |
-| `vcpu_count`            | `4`                              |
-| `mem_size_mib`          | `8192`                           |
-| `project_disk_size_mb`  | `1024`                           |
-| `boot_timeout_sec`      | `120s`                           |
-| `ssh_ready_timeout_sec` | `90s`                            |
-| `ssh_user`              | `agent`                          |
-| `tmux_session_name`     | `opencode`                       |
-| `auto_pull`             | `true`                           |
-| `auto_pull_interval_sec`| `30`                             |
+Artifact pins (defaults are fixed for reproducible bootstrap; override to change the stack):
 
-## Project layout
+| Setting | Default |
+|---------|---------|
+| `CELL_CI_PREFIX` | `firecracker-ci/20260708-f11c230ed107-0/` |
+| `CELL_KERNEL_VERSION` | `6.1.176` |
+| `CELL_FIRECRACKER_VERSION` | `v1.16.1` |
+| `CELL_SQUASHFS_VERSION` | `24.04` |
 
-```
-cmd/cell/          entry point
-internal/cli/      cobra commands
-internal/bootstrap artifact download/build + version resolution
-internal/hypervisor firecracker process management
-internal/firecracker firecracker API client
-internal/session   VM lifecycle
-internal/network   TAP/interface setup
-internal/ssh        key generation + attach
-internal/sync       rsync pull / auto-pull
-internal/stage      repo staging onto project disk
-internal/models     shared types
-internal/config     viper-based config
-internal/verbose    verbose logging flag
-guestinit/          embedded shell scripts run inside the guest
-scripts/            host-side helper scripts
-```
+Path overrides (`CELL_KERNEL_PATH`, `CELL_FIRECRACKER_BIN`, `CELL_SQUASHFS_PATH`) still win when the file already exists.
+
+Runtime:
+
+| Setting                  | Default           |
+|--------------------------|-------------------|
+| `CELL_DATA_DIR`          | `/var/lib/cell`   |
+| `CELL_VCPU_COUNT`        | `4`               |
+| `CELL_MEM_SIZE_MIB`      | `8192`            |
+| `CELL_AUTO_PULL`         | `true`            |
+| `CELL_AUTO_PULL_INTERVAL_SEC` | `30`         |
 
 ## License
 
-[MIT](LICENSE) © Yuriy Khoroshevskiy
+[MIT](LICENSE) © Yuri Khoroshevskiy
