@@ -18,6 +18,11 @@ import (
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
 )
 
+func artifactReady(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && st.Size() > 0
+}
+
 func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 	if err := os.MkdirAll(cfg.ImagesDir, 0755); err != nil {
 		return err
@@ -61,44 +66,62 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		_ = os.Remove(cfg.RootfsPath)
 	}
 
-	if err := download(kernelVersioned, kernelArt); err != nil {
-		return err
-	}
-	if err := ValidateKernel(kernelVersioned); err != nil {
-		return err
-	}
-	_ = ensureSymlink(cfg.KernelPath, kernelVersioned)
-
-	if err := download(sqVersioned, sqArt); err != nil {
-		return err
-	}
-	cfg.SquashfsPath = sqVersioned
-
-	if err := download(fcTgz, fcArt); err != nil {
-		return err
-	}
-	if st, err := os.Stat(fcVersioned); err == nil && st.Size() > 0 {
-		fmt.Printf("✓ firecracker binary cached (%s)\n", humanSize(st.Size()))
+	if !force && artifactReady(cfg.KernelPath) {
+		st, _ := os.Stat(cfg.KernelPath)
+		fmt.Printf("✓ kernel cached (%s)\n", humanSize(st.Size()))
 	} else {
-		fmt.Printf("extracting firecracker…\n")
-		if err := extractFirecracker(fcTgz, fcVersioned); err != nil {
+		if err := download(kernelVersioned, kernelArt); err != nil {
+			return fmt.Errorf("download %s failed (ci_prefix=%s kernel=%s firecracker=%s squashfs=%s): %w",
+				kernelArt.Name, pins.CIPrefix, pins.KernelVersion, pins.FirecrackerVersion, pins.SquashfsVersion, err)
+		}
+		if err := ValidateKernel(kernelVersioned); err != nil {
 			return err
 		}
-		if err := os.Chmod(fcVersioned, 0755); err != nil {
-			return err
-		}
-		fcStat, _ := os.Stat(fcVersioned)
-		fmt.Printf("✓ firecracker %s\n", humanSize(fcStat.Size()))
+		_ = ensureSymlink(cfg.KernelPath, kernelVersioned)
 	}
-	_ = ensureSymlink(cfg.FirecrackerBin, fcVersioned)
+
+	if !force && artifactReady(cfg.SquashfsPath) {
+		st, _ := os.Stat(cfg.SquashfsPath)
+		fmt.Printf("✓ squashfs cached (%s)\n", humanSize(st.Size()))
+	} else {
+		if err := download(sqVersioned, sqArt); err != nil {
+			return fmt.Errorf("download %s failed (ci_prefix=%s kernel=%s firecracker=%s squashfs=%s): %w",
+				sqArt.Name, pins.CIPrefix, pins.KernelVersion, pins.FirecrackerVersion, pins.SquashfsVersion, err)
+		}
+		cfg.SquashfsPath = sqVersioned
+	}
+
+	if !force && artifactReady(cfg.FirecrackerBin) {
+		st, _ := os.Stat(cfg.FirecrackerBin)
+		fmt.Printf("✓ firecracker cached (%s)\n", humanSize(st.Size()))
+	} else {
+		if err := download(fcTgz, fcArt); err != nil {
+			return fmt.Errorf("download %s failed (ci_prefix=%s kernel=%s firecracker=%s squashfs=%s): %w",
+				fcArt.Name, pins.CIPrefix, pins.KernelVersion, pins.FirecrackerVersion, pins.SquashfsVersion, err)
+		}
+		if st, err := os.Stat(fcVersioned); err == nil && st.Size() > 0 {
+			fmt.Printf("✓ firecracker binary cached (%s)\n", humanSize(st.Size()))
+		} else {
+			fmt.Printf("extracting firecracker…\n")
+			if err := extractFirecracker(fcTgz, fcVersioned); err != nil {
+				return err
+			}
+			if err := os.Chmod(fcVersioned, 0755); err != nil {
+				return err
+			}
+			fcStat, _ := os.Stat(fcVersioned)
+			fmt.Printf("✓ firecracker %s\n", humanSize(fcStat.Size()))
+		}
+		_ = ensureSymlink(cfg.FirecrackerBin, fcVersioned)
+	}
 
 	needsRootfs := rebuildRootfs || cfg.RebuildRootfs
 	if st, err := os.Stat(cfg.RootfsPath); err != nil || st.Size() == 0 {
 		needsRootfs = true
 	}
 	if needsRootfs {
-		fmt.Printf("Building rootfs from %s…\n", sqVersioned)
-		if err := buildRootfs(sqVersioned, cfg.RootfsPath, initScriptsDir, cfg.ImagesDir, rootfsSizeMB(cfg)); err != nil {
+		fmt.Printf("Building rootfs from %s…\n", cfg.SquashfsPath)
+		if err := buildRootfs(cfg.SquashfsPath, cfg.RootfsPath, initScriptsDir, cfg.ImagesDir, rootfsSizeMB(cfg)); err != nil {
 			return err
 		}
 		rStat, _ := os.Stat(cfg.RootfsPath)
