@@ -37,7 +37,13 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 	if err != nil {
 		return err
 	}
-	kernelArt, fcArt, sqArt, err := resolveArtifacts(arch)
+	pins := ArtifactPins{
+		CIPrefix:           cfg.CIPrefix,
+		KernelVersion:      cfg.KernelVersion,
+		FirecrackerVersion: cfg.FirecrackerVersion,
+		SquashfsVersion:    cfg.SquashfsVersion,
+	}
+	kernelArt, fcArt, sqArt, err := resolveArtifacts(arch, pins)
 	if err != nil {
 		return err
 	}
