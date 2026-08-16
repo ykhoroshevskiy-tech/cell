@@ -31,6 +31,17 @@ func TestWriteServerPasswordModeAndRoundTrip(t *testing.T) {
 	}
 }
 
+func TestWriteServerPasswordEmptyExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(ServerPasswordPath(dir), []byte("  \n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := WriteServerPassword(dir)
+	if err == nil {
+		t.Fatal("expected error for empty existing file")
+	}
+}
+
 func TestWriteServerPasswordDoesNotRotate(t *testing.T) {
 	dir := t.TempDir()
 	first, err := WriteServerPassword(dir)
