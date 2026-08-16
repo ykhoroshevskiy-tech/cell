@@ -54,3 +54,15 @@ func ReadServerPassword(sessionDir string) (string, error) {
 	}
 	return pw, nil
 }
+
+func CopyPasswordToDiskRoot(sessionDir, diskRoot string) error {
+	pw, err := ReadServerPassword(sessionDir)
+	if err != nil {
+		return err
+	}
+	dst := filepath.Join(diskRoot, GuestPasswordRel)
+	if err := os.MkdirAll(filepath.Dir(dst), 0700); err != nil {
+		return err
+	}
+	return os.WriteFile(dst, []byte(pw+"\n"), 0600)
+}
