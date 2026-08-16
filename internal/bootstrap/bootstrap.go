@@ -316,6 +316,7 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 		{Name: "zsh", Binary: "/bin/zsh"},
 		{Name: "libpopt0", Binary: "/usr/lib/x86_64-linux-gnu/libpopt.so.0"},
 		{Name: "rsync", Binary: "/usr/bin/rsync"},
+		{Name: "curl", Binary: "/usr/bin/curl"},
 	}); err != nil {
 		return err
 	}
@@ -326,6 +327,7 @@ id agent >/dev/null 2>&1 || useradd -m -s /bin/zsh agent
 mkdir -p /run/sshd
 command -v tmux
 command -v rsync
+command -v curl
 command -v sshd
 command -v zsh
 test -x /opt/guest-init/guest-entry.sh
