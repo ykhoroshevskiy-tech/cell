@@ -74,14 +74,12 @@ func (sm *SessionManager) Launch(ctx context.Context, repoPath string, attach bo
 			verbose.V("launch: auto-pull enabled (interval %ds)", sm.cfg.AutoPullIntervalSec)
 			go sync.StartAutoPull(pullCtx, session, sm.cfg, sm.pullAdapter)
 		}
-		verbose.V("launch: attaching SSH")
-		if err := sm.attachSSH(session); err != nil {
+		verbose.V("launch: attaching host TUI")
+		if err := sm.attachTUI(session); err != nil {
 			cancelPull()
-			_ = sm.Stop(ctx, session.SessionID)
 			return session, err
 		}
 		cancelPull()
-		_ = sm.Stop(ctx, session.SessionID)
 	}
 	return session, nil
 }
@@ -269,8 +267,14 @@ func (sm *SessionManager) waitReady(session *models.SessionRecord) error {
 	return ssh.WaitRuntimeReady(session, sm.cfg)
 }
 
-func (sm *SessionManager) attachSSH(session *models.SessionRecord) error {
-	return ssh.Attach(session, sm.cfg)
+func (sm *SessionManager) attachTUI(session *models.SessionRecord) error {
+	pw, err := ReadServerPassword(session.SessionDir)
+	if err != nil {
+		return err
+	}
+	err = ssh.AttachTUI(session, sm.cfg, pw)
+	_ = sm.saveSession(session) // persist HostForwardPort
+	return err
 }
 
 func (sm *SessionManager) Stop(ctx context.Context, sessionID string) error {
@@ -316,7 +320,24 @@ func (sm *SessionManager) Attach(ctx context.Context, sessionID string) error {
 	if err != nil {
 		return err
 	}
-	return sm.attachSSH(session)
+	if !ssh.VMRunning(session.FCPid) {
+		return fmt.Errorf("VM not running; cell start --session %s", sessionID)
+	}
+	pullCtx, cancelPull := context.WithCancel(ctx)
+	defer cancelPull()
+	if sm.cfg.AutoPull {
+		go sync.StartAutoPull(pullCtx, session, sm.cfg, sm.pullAdapter)
+	}
+	return sm.attachTUI(session)
+}
+
+func (sm *SessionManager) AttachShell(ctx context.Context, sessionID string) error {
+	_ = ctx
+	session, err := sm.loadSession(sessionID)
+	if err != nil {
+		return err
+	}
+	return ssh.AttachShell(session, sm.cfg)
 }
 
 func (sm *SessionManager) Pull(ctx context.Context, sessionID string, opts models.PullOptions) (*models.PullResult, error) {
