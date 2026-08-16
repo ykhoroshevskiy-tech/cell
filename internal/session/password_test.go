@@ -59,6 +59,39 @@ func TestWriteServerPasswordDoesNotRotate(t *testing.T) {
 	_ = filepath.Separator
 }
 
+func TestCopyPasswordToDiskRootFixesExistingPerm(t *testing.T) {
+	sessionDir := t.TempDir()
+	diskRoot := t.TempDir()
+	pw, err := WriteServerPassword(sessionDir)
+	if err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	dst := filepath.Join(diskRoot, GuestPasswordRel)
+	if err := os.MkdirAll(filepath.Dir(dst), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dst, []byte("old\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := CopyPasswordToDiskRoot(sessionDir, diskRoot); err != nil {
+		t.Fatalf("copy: %v", err)
+	}
+	got, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("read guest copy: %v", err)
+	}
+	if strings.TrimSpace(string(got)) != pw {
+		t.Fatalf("guest copy = %q want %q", got, pw)
+	}
+	st, err := os.Stat(dst)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	if st.Mode().Perm() != 0600 {
+		t.Fatalf("guest perm = %o, want 0600", st.Mode().Perm())
+	}
+}
+
 func TestCopyPasswordToDiskRoot(t *testing.T) {
 	sessionDir := t.TempDir()
 	diskRoot := t.TempDir()
