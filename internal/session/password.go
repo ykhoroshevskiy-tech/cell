@@ -20,6 +20,11 @@ func WriteServerPassword(sessionDir string) (string, error) {
 	if err := os.MkdirAll(sessionDir, 0755); err != nil {
 		return "", err
 	}
+	buf := make([]byte, 16)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	pw := hex.EncodeToString(buf)
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if err != nil {
 		if os.IsExist(err) {
@@ -27,13 +32,12 @@ func WriteServerPassword(sessionDir string) (string, error) {
 		}
 		return "", err
 	}
-	defer f.Close()
-	buf := make([]byte, 16)
-	if _, err := rand.Read(buf); err != nil {
+	if _, err := f.Write([]byte(pw + "\n")); err != nil {
+		f.Close()
+		os.Remove(path)
 		return "", err
 	}
-	pw := hex.EncodeToString(buf)
-	if _, err := f.Write([]byte(pw + "\n")); err != nil {
+	if err := f.Close(); err != nil {
 		return "", err
 	}
 	return pw, nil
