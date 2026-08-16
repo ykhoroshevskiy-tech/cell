@@ -9,7 +9,10 @@ import (
 	"strings"
 )
 
-const GuestPasswordRel = ".filter/opencode-server.pass"
+const (
+	GuestPasswordRel   = ".filter/opencode-server.pass"
+	GuestServePortRel  = ".filter/opencode-serve.port"
+)
 
 func ServerPasswordPath(sessionDir string) string {
 	return filepath.Join(sessionDir, "opencode-server.pass")
@@ -53,6 +56,17 @@ func ReadServerPassword(sessionDir string) (string, error) {
 		return "", fmt.Errorf("serve password file empty")
 	}
 	return pw, nil
+}
+
+func WriteServePortToDiskRoot(diskRoot string, port int) error {
+	dst := filepath.Join(diskRoot, GuestServePortRel)
+	if err := os.MkdirAll(filepath.Dir(dst), 0700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(dst, []byte(fmt.Sprintf("%d\n", port)), 0600); err != nil {
+		return err
+	}
+	return os.Chmod(dst, 0600)
 }
 
 func CopyPasswordToDiskRoot(sessionDir, diskRoot string) error {

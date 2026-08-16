@@ -37,3 +37,31 @@ func TestStartPreflightOK(t *testing.T) {
 		t.Fatalf("err=%v", err)
 	}
 }
+
+func TestPrepareVMBootArtifacts(t *testing.T) {
+	dir := t.TempDir()
+	s := &models.SessionRecord{SessionID: "abc123"}
+	s.ArtifactPaths(dir)
+	if err := os.MkdirAll(s.SessionDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(s.SocketPath, []byte("stale"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(s.SerialLogPath, []byte("runtime ready\nkernel panic\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := prepareVMBootArtifacts(s); err != nil {
+		t.Fatalf("prepare: %v", err)
+	}
+	if _, err := os.Stat(s.SocketPath); !os.IsNotExist(err) {
+		t.Fatalf("socket still exists: %v", err)
+	}
+	data, err := os.ReadFile(s.SerialLogPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(data) != 0 {
+		t.Fatalf("serial log not truncated: %q", data)
+	}
+}

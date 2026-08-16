@@ -31,9 +31,9 @@ func TestCheckFatal(t *testing.T) {
 }
 
 func TestHealthProbeRemote(t *testing.T) {
-	cfg := &config.CellConfig{AgentServePort: 4096}
+	cfg := &config.CellConfig{GuestRepoDir: "/project", AgentServePort: 4096}
 	got := ssh.HealthProbeRemote(cfg)
-	want := "curl -sf http://127.0.0.1:4096/global/health"
+	want := "curl -sf -u opencode:$(cat /project/.filter/opencode-server.pass) http://127.0.0.1:4096/global/health"
 	if got != want {
 		t.Fatalf("probe = %q want %q", got, want)
 	}
