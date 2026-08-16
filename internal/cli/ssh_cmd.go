@@ -21,7 +21,7 @@ func newSSHCmd(cfg *config.CellConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return sm.Attach(cmd.Context(), sessionID)
+			return sm.AttachShell(cmd.Context(), sessionID)
 		},
 	}
 	cmd.Flags().StringVar(&sessionID, "session", "", "Session ID")
