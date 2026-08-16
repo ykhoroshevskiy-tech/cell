@@ -46,6 +46,9 @@ func (sm *SessionManager) Launch(ctx context.Context, repoPath string, attach bo
 	if err != nil {
 		return nil, err
 	}
+	if _, err := WriteServerPassword(session.SessionDir); err != nil {
+		return nil, err
+	}
 	verbose.V("launch: staging repo → %s", session.StagedRepoDir)
 	if err := sm.stageRepo(session); err != nil {
 		return nil, err
@@ -174,6 +177,9 @@ func (sm *SessionManager) buildDisk(session *models.SessionRecord) error {
 		return fmt.Errorf("authorized_keys would be empty")
 	}
 	if err := os.WriteFile(filepath.Join(filterDir, "authorized_keys"), pub, 0600); err != nil {
+		return err
+	}
+	if err := CopyPasswordToDiskRoot(session.SessionDir, rootDir); err != nil {
 		return err
 	}
 

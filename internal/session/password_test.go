@@ -3,6 +3,7 @@ package session
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -56,4 +57,27 @@ func TestWriteServerPasswordDoesNotRotate(t *testing.T) {
 		t.Fatalf("rotated password")
 	}
 	_ = filepath.Separator
+}
+
+func TestCopyPasswordToDiskRoot(t *testing.T) {
+	sessionDir := t.TempDir()
+	diskRoot := t.TempDir()
+	pw, err := WriteServerPassword(sessionDir)
+	if err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	if err := CopyPasswordToDiskRoot(sessionDir, diskRoot); err != nil {
+		t.Fatalf("copy: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(diskRoot, GuestPasswordRel))
+	if err != nil {
+		t.Fatalf("read guest copy: %v", err)
+	}
+	if strings.TrimSpace(string(got)) != pw {
+		t.Fatalf("guest copy = %q want %q", got, pw)
+	}
+	st, _ := os.Stat(filepath.Join(diskRoot, GuestPasswordRel))
+	if st.Mode().Perm() != 0600 {
+		t.Fatalf("guest perm = %o", st.Mode().Perm())
+	}
 }
