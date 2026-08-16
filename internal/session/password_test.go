@@ -92,6 +92,24 @@ func TestCopyPasswordToDiskRootFixesExistingPerm(t *testing.T) {
 	}
 }
 
+func TestWriteServePortToDiskRoot(t *testing.T) {
+	diskRoot := t.TempDir()
+	if err := WriteServePortToDiskRoot(diskRoot, 4097); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(diskRoot, GuestServePortRel))
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if strings.TrimSpace(string(got)) != "4097" {
+		t.Fatalf("port = %q want 4097", got)
+	}
+	st, _ := os.Stat(filepath.Join(diskRoot, GuestServePortRel))
+	if st.Mode().Perm() != 0600 {
+		t.Fatalf("perm = %o", st.Mode().Perm())
+	}
+}
+
 func TestCopyPasswordToDiskRoot(t *testing.T) {
 	sessionDir := t.TempDir()
 	diskRoot := t.TempDir()

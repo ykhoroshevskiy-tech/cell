@@ -137,7 +137,11 @@ func WaitRuntimeReady(session *models.SessionRecord, cfg *config.CellConfig) err
 }
 
 func HealthProbeRemote(cfg *config.CellConfig) string {
-	return fmt.Sprintf("curl -sf http://127.0.0.1:%d/global/health", cfg.AgentServePort)
+	passFile := fmt.Sprintf("%s/.filter/opencode-server.pass", cfg.GuestRepoDir)
+	return fmt.Sprintf(
+		"curl -sf -u opencode:$(cat %s) http://127.0.0.1:%d/global/health",
+		passFile, cfg.AgentServePort,
+	)
 }
 
 func ServerReady(session *models.SessionRecord, cfg *config.CellConfig) bool {
@@ -302,6 +306,3 @@ func AttachTUI(session *models.SessionRecord, cfg *config.CellConfig, password s
 	return tui.Run()
 }
 
-func Attach(session *models.SessionRecord, cfg *config.CellConfig) error {
-	return AttachShell(session, cfg)
-}

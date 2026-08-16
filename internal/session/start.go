@@ -14,6 +14,17 @@ import (
 
 var ErrAlreadyRunning = errors.New("vm already running")
 
+func prepareVMBootArtifacts(session *models.SessionRecord) error {
+	if err := os.Remove(session.SocketPath); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	f, err := os.OpenFile(session.SerialLogPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		return err
+	}
+	return f.Close()
+}
+
 func StartPreflight(session *models.SessionRecord, vmRunning bool) error {
 	if vmRunning {
 		return ErrAlreadyRunning
@@ -33,6 +44,9 @@ func (sm *SessionManager) Start(ctx context.Context, sessionID string, attach bo
 		return err
 	}
 	verbose.V("start: booting existing disk %s", session.ProjectDiskPath)
+	if err := prepareVMBootArtifacts(session); err != nil {
+		return err
+	}
 	if err := sm.startVM(ctx, session); err != nil {
 		return err
 	}

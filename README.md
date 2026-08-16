@@ -52,7 +52,7 @@ sudo cell launch --repo /path/to/your/repo
 
 sudo cell ps
 sudo cell attach --session <session-id>
-sudo cell pull <session-id>
+sudo cell pull --session <session-id>
 sudo cell stop --session <session-id>
 ```
 

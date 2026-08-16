@@ -180,6 +180,9 @@ func (sm *SessionManager) buildDisk(session *models.SessionRecord) error {
 	if err := CopyPasswordToDiskRoot(session.SessionDir, rootDir); err != nil {
 		return err
 	}
+	if err := WriteServePortToDiskRoot(rootDir, sm.cfg.AgentServePort); err != nil {
+		return err
+	}
 
 	_ = os.Remove(session.ProjectDiskPath)
 	verbose.V("mkfs: project disk %s (%d MB)", session.ProjectDiskPath, sm.cfg.ProjectDiskSizeMB)
