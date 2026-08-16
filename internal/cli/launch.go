@@ -65,6 +65,10 @@ func newLaunchCmd(cfg *config.CellConfig) *cobra.Command {
 			}()
 
 			sess, err := sm.Launch(ctx, repo, !noAttach)
+			if sess != nil && !noAttach {
+				fmt.Printf("session %s still running; cell attach --session %s / cell stop --session %s\n",
+					sess.SessionID, sess.SessionID, sess.SessionID)
+			}
 			if err != nil {
 				return err
 			}

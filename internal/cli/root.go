@@ -32,6 +32,8 @@ func newRootCmd(cfg *config.CellConfig) *cobra.Command {
 
 	root.AddCommand(newBootstrapCmd(cfg))
 	root.AddCommand(newLaunchCmd(cfg))
+	root.AddCommand(newStartCmd(cfg))
+	root.AddCommand(newAttachCmd(cfg))
 	root.AddCommand(newStopCmd(cfg))
 	root.AddCommand(newSSHCmd(cfg))
 	root.AddCommand(newStatusCmd(cfg))
