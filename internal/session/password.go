@@ -17,20 +17,23 @@ func ServerPasswordPath(sessionDir string) string {
 
 func WriteServerPassword(sessionDir string) (string, error) {
 	path := ServerPasswordPath(sessionDir)
-	if b, err := os.ReadFile(path); err == nil {
-		return strings.TrimSpace(string(b)), nil
-	} else if !os.IsNotExist(err) {
+	if err := os.MkdirAll(sessionDir, 0755); err != nil {
 		return "", err
 	}
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
+	if err != nil {
+		if os.IsExist(err) {
+			return ReadServerPassword(sessionDir)
+		}
+		return "", err
+	}
+	defer f.Close()
 	buf := make([]byte, 16)
 	if _, err := rand.Read(buf); err != nil {
 		return "", err
 	}
 	pw := hex.EncodeToString(buf)
-	if err := os.MkdirAll(sessionDir, 0755); err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(path, []byte(pw+"\n"), 0600); err != nil {
+	if _, err := f.Write([]byte(pw + "\n")); err != nil {
 		return "", err
 	}
 	return pw, nil
