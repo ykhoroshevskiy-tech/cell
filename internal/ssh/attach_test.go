@@ -1,8 +1,10 @@
 package ssh_test
 
 import (
+	"net"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
@@ -82,6 +84,33 @@ func TestTUIArgs(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("arg[%d]=%q want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestWaitTunnelForwardReady(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := ln.Addr().(*net.TCPAddr).Port
+	exited := make(chan struct{})
+	if err := ssh.WaitTunnelForwardReadyForTest(port, exited, 2*time.Second); err != nil {
+		t.Fatalf("ready listener: %v", err)
+	}
+	_ = ln.Close()
+
+	exitedEarly := make(chan struct{})
+	close(exitedEarly)
+	if err := ssh.WaitTunnelForwardReadyForTest(59999, exitedEarly, time.Second); err == nil {
+		t.Fatal("expected error when tunnel exited")
+	} else if err.Error() != "ssh tunnel exited before forward ready" {
+		t.Fatalf("exit err=%q", err)
+	}
+
+	if err := ssh.WaitTunnelForwardReadyForTest(59999, make(chan struct{}), 500*time.Millisecond); err == nil {
+		t.Fatal("expected timeout error")
+	} else if err.Error() != "ssh tunnel forward not ready" {
+		t.Fatalf("timeout err=%q", err)
 	}
 }
 
