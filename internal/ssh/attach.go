@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"syscall"
@@ -168,24 +169,105 @@ func SessionStatus(session *models.SessionRecord, cfg *config.CellConfig) *model
 	return st
 }
 
-func Attach(session *models.SessionRecord, cfg *config.CellConfig) error {
-	if session.SSHKeyPath == "" || session.NetworkConfig == nil {
-		return fmt.Errorf("session missing ssh key or network config")
+func PickLocalPort() (int, error) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return 0, err
 	}
-	// Single-quote AGENT_CMD so spaces survive the remote shell.
-	cmdQuoted := "'" + strings.ReplaceAll(cfg.AgentCmd, "'", `'\''`) + "'"
+	port := ln.Addr().(*net.TCPAddr).Port
+	_ = ln.Close()
+	return port, nil
+}
+
+func TunnelSSHArgs(session *models.SessionRecord, cfg *config.CellConfig, hostPort int) []string {
+	args := []string{
+		"-N",
+		"-o", "ExitOnForwardFailure=yes",
+		"-L", fmt.Sprintf("%d:127.0.0.1:%d", hostPort, cfg.AgentServePort),
+	}
+	args = append(args, sshBaseArgs(session.SSHKeyPath)...)
+	args = append(args, fmt.Sprintf("%s@%s", cfg.SSHUser, session.NetworkConfig.GuestIP))
+	return args
+}
+
+func TUIArgs(cfg *config.CellConfig, hostPort int, password string) []string {
+	return []string{
+		"attach",
+		fmt.Sprintf("http://127.0.0.1:%d", hostPort),
+		"--dir", cfg.GuestRepoDir,
+		"--continue",
+		"-p", password,
+	}
+}
+
+func LookPathHostAgent(cfg *config.CellConfig) (string, error) {
+	bin := cfg.HostAgentBin
+	if bin == "" {
+		bin = "opencode"
+	}
+	if filepath.IsAbs(bin) {
+		if _, err := os.Stat(bin); err != nil {
+			return "", fmt.Errorf("host agent missing: %s", bin)
+		}
+		return bin, nil
+	}
+	p, err := exec.LookPath(bin)
+	if err != nil {
+		return "", fmt.Errorf("host agent %q not on PATH: %w", bin, err)
+	}
+	return p, nil
+}
+
+func ShellAttachArgs(session *models.SessionRecord, cfg *config.CellConfig) []string {
 	remote := fmt.Sprintf(
-		"TMUX_SESSION=%s REPO_DIR=%s AGENT_BIN=%s AGENT_CMD=%s %s",
-		cfg.TmuxSessionName, cfg.GuestRepoDir, cfg.AgentBin, cmdQuoted, cfg.GuestAttachScript,
+		"TMUX_SESSION=%s REPO_DIR=%s %s",
+		cfg.TmuxSessionName, cfg.GuestRepoDir, cfg.GuestAttachScript,
 	)
 	args := append([]string{"-t"}, sshBaseArgs(session.SSHKeyPath)...)
 	args = append(args,
 		fmt.Sprintf("%s@%s", cfg.SSHUser, session.NetworkConfig.GuestIP),
 		remote,
 	)
-	cmd := exec.Command("ssh", args...)
+	return args
+}
+
+func AttachShell(session *models.SessionRecord, cfg *config.CellConfig) error {
+	if session.SSHKeyPath == "" || session.NetworkConfig == nil {
+		return fmt.Errorf("session missing ssh key or network config")
+	}
+	cmd := exec.Command("ssh", ShellAttachArgs(session, cfg)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
+}
+
+func AttachTUI(session *models.SessionRecord, cfg *config.CellConfig, password string) error {
+	bin, err := LookPathHostAgent(cfg)
+	if err != nil {
+		return err
+	}
+	if session.SSHKeyPath == "" || session.NetworkConfig == nil {
+		return fmt.Errorf("session missing ssh key or network config")
+	}
+	hostPort, err := PickLocalPort()
+	if err != nil {
+		return err
+	}
+	session.HostForwardPort = hostPort
+	tunnel := exec.Command("ssh", TunnelSSHArgs(session, cfg, hostPort)...)
+	if err := tunnel.Start(); err != nil {
+		return fmt.Errorf("ssh tunnel: %w", err)
+	}
+	defer func() { _ = tunnel.Process.Kill(); _ = tunnel.Wait() }()
+
+	tui := exec.Command(bin, TUIArgs(cfg, hostPort, password)...)
+	tui.Stdin = os.Stdin
+	tui.Stdout = os.Stdout
+	tui.Stderr = os.Stderr
+	return tui.Run()
+}
+
+func Attach(session *models.SessionRecord, cfg *config.CellConfig) error {
+	return AttachShell(session, cfg)
 }

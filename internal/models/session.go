@@ -28,6 +28,7 @@ type SessionRecord struct {
 	SSHKeyPath       string         `json:"ssh_key_path,omitempty"`
 	SSHPublicKeyPath string         `json:"ssh_pubkey_path,omitempty"`
 	NetworkConfig    *NetworkConfig `json:"network_config,omitempty"`
+	HostForwardPort  int            `json:"host_forward_port,omitempty"`
 	Error            string         `json:"error,omitempty"`
 }
 
