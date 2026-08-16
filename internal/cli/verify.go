@@ -27,14 +27,14 @@ func newVerifyCmd(cfg *config.CellConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if st.RuntimeReady && st.SSHReachable && st.TmuxReady {
-				fmt.Fprintf(cmd.OutOrStdout(), "ok: runtime=%v ssh=%v tmux=%v\n", st.RuntimeReady, st.SSHReachable, st.TmuxReady)
+			if st.RuntimeReady && st.SSHReachable && st.ServerReady {
+				fmt.Fprintf(cmd.OutOrStdout(), "ok: runtime=%v ssh=%v server=%v\n", st.RuntimeReady, st.SSHReachable, st.ServerReady)
 				return nil
 			}
 			logData, _ := sm.SerialLog(sessionID)
 			tail := ssh.ReadTailFromBytes(logData, 20)
-			fmt.Fprintf(os.Stderr, "verify failed: runtime=%v ssh=%v tmux=%v\n--- serial tail ---\n%s\n",
-				st.RuntimeReady, st.SSHReachable, st.TmuxReady, tail)
+			fmt.Fprintf(os.Stderr, "verify failed: runtime=%v ssh=%v server=%v\n--- serial tail ---\n%s\n",
+				st.RuntimeReady, st.SSHReachable, st.ServerReady, tail)
 			return fmt.Errorf("verify failed")
 		},
 	}

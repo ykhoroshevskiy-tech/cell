@@ -6,7 +6,7 @@ type SessionStatus struct {
 	SessionID    string `json:"session_id"`
 	VMRunning    bool   `json:"vm_running"`
 	SSHReachable bool   `json:"ssh_reachable"`
-	TmuxReady    bool   `json:"tmux_ready"`
+	ServerReady  bool   `json:"server_ready"`
 	RuntimeReady bool   `json:"runtime_ready"`
 	GuestIP      string `json:"guest_ip,omitempty"`
 	TapName      string `json:"tap_name,omitempty"`
@@ -16,7 +16,7 @@ type SessionListEntry struct {
 	SessionID    string       `json:"session_id"`
 	VMRunning    bool         `json:"vm_running"`
 	SSHReachable bool         `json:"ssh_reachable"`
-	TmuxReady    bool         `json:"tmux_ready"`
+	ServerReady  bool         `json:"server_ready"`
 	RuntimeReady bool         `json:"runtime_ready"`
 	GuestIP      string       `json:"guest_ip,omitempty"`
 	TapName      string       `json:"tap_name,omitempty"`

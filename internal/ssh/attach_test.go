@@ -3,6 +3,7 @@ package ssh_test
 import (
 	"testing"
 
+	"github.com/ykhoroshevskiy-tech/cell/internal/config"
 	"github.com/ykhoroshevskiy-tech/cell/internal/ssh"
 )
 
@@ -21,6 +22,15 @@ func TestCheckFatal(t *testing.T) {
 		if (got != "") != c.fatal {
 			t.Fatalf("log=%q got=%q fatal=%v", c.log, got, c.fatal)
 		}
+	}
+}
+
+func TestHealthProbeRemote(t *testing.T) {
+	cfg := &config.CellConfig{AgentServePort: 4096}
+	got := ssh.HealthProbeRemote(cfg)
+	want := "curl -sf http://127.0.0.1:4096/global/health"
+	if got != want {
+		t.Fatalf("probe = %q want %q", got, want)
 	}
 }
 
