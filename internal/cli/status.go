@@ -14,7 +14,7 @@ func newStatusCmd(cfg *config.CellConfig) *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "status",
-		Short: "Probe VM/SSH/tmux for one session",
+		Short: "Probe VM/SSH/server for one session",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if sessionID == "" {
 				return fmt.Errorf("--session is required")
@@ -32,8 +32,8 @@ func newStatusCmd(cfg *config.CellConfig) *cobra.Command {
 				enc.SetIndent("", "  ")
 				return enc.Encode(st)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "session=%s vm_running=%v ssh=%v tmux=%v runtime=%v guest_ip=%s tap=%s\n",
-				st.SessionID, st.VMRunning, st.SSHReachable, st.TmuxReady, st.RuntimeReady, st.GuestIP, st.TapName)
+			fmt.Fprintf(cmd.OutOrStdout(), "session=%s vm_running=%v ssh=%v server=%v runtime=%v guest_ip=%s tap=%s\n",
+				st.SessionID, st.VMRunning, st.SSHReachable, st.ServerReady, st.RuntimeReady, st.GuestIP, st.TapName)
 			return nil
 		},
 	}

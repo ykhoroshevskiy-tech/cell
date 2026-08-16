@@ -123,11 +123,11 @@ func WaitRuntimeReady(session *models.SessionRecord, cfg *config.CellConfig) err
 		}
 
 		status := SessionStatus(session, cfg)
-		if status.RuntimeReady && status.SSHReachable && status.TmuxReady {
+		if status.RuntimeReady && status.SSHReachable && status.ServerReady {
 			return nil
 		}
-		verbose.V("wait: vm=%v ssh=%v runtime=%v tmux=%v (%v remaining)",
-			status.VMRunning, status.SSHReachable, status.RuntimeReady, status.TmuxReady,
+		verbose.V("wait: vm=%v ssh=%v runtime=%v server=%v (%v remaining)",
+			status.VMRunning, status.SSHReachable, status.RuntimeReady, status.ServerReady,
 			time.Until(deadline).Round(time.Second))
 		time.Sleep(200 * time.Millisecond)
 	}
@@ -135,13 +135,17 @@ func WaitRuntimeReady(session *models.SessionRecord, cfg *config.CellConfig) err
 		cfg.SSHReadyTimeoutSec, ReadTail(session.SerialLogPath, 20))
 }
 
-func TmuxReady(session *models.SessionRecord, cfg *config.CellConfig) bool {
+func HealthProbeRemote(cfg *config.CellConfig) string {
+	return fmt.Sprintf("curl -sf http://127.0.0.1:%d/global/health", cfg.AgentServePort)
+}
+
+func ServerReady(session *models.SessionRecord, cfg *config.CellConfig) bool {
 	if session.SSHKeyPath == "" || session.NetworkConfig == nil {
 		return false
 	}
 	args := append(sshBaseArgs(session.SSHKeyPath),
 		fmt.Sprintf("%s@%s", cfg.SSHUser, session.NetworkConfig.GuestIP),
-		fmt.Sprintf("tmux has-session -t %s 2>/dev/null", cfg.TmuxSessionName),
+		HealthProbeRemote(cfg),
 	)
 	cmd := exec.Command("ssh", args...)
 	return cmd.Run() == nil
@@ -159,7 +163,7 @@ func SessionStatus(session *models.SessionRecord, cfg *config.CellConfig) *model
 	}
 	st.RuntimeReady = RuntimeReady(session.SerialLogPath)
 	if st.SSHReachable {
-		st.TmuxReady = TmuxReady(session, cfg)
+		st.ServerReady = ServerReady(session, cfg)
 	}
 	return st
 }

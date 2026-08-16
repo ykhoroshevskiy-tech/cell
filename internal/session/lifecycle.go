@@ -369,7 +369,7 @@ func (sm *SessionManager) List(ctx context.Context, runningOnly bool) ([]*models
 			SessionID:    session.SessionID,
 			VMRunning:    st.VMRunning,
 			SSHReachable: st.SSHReachable,
-			TmuxReady:    st.TmuxReady,
+			ServerReady:  st.ServerReady,
 			RuntimeReady: st.RuntimeReady,
 			GuestIP:      st.GuestIP,
 			TapName:      st.TapName,
