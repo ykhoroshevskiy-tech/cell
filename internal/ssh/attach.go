@@ -244,31 +244,32 @@ func AttachShell(session *models.SessionRecord, cfg *config.CellConfig) error {
 
 const tunnelForwardWaitTimeout = 5 * time.Second
 
-func waitTunnelForwardReady(hostPort int, exited <-chan struct{}, timeout time.Duration) error {
+func tunnelProcessAlive(proc *os.Process) bool {
+	if proc == nil {
+		return true
+	}
+	return proc.Signal(syscall.Signal(0)) == nil
+}
+
+func waitTunnelForwardReady(hostPort int, proc *os.Process, timeout time.Duration) error {
 	deadline := time.Now().Add(timeout)
 	addr := net.JoinHostPort("127.0.0.1", fmt.Sprintf("%d", hostPort))
 	for time.Now().Before(deadline) {
-		select {
-		case <-exited:
+		if !tunnelProcessAlive(proc) {
 			return fmt.Errorf("ssh tunnel exited before forward ready")
-		default:
 		}
 		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
 		if err == nil {
 			conn.Close()
 			return nil
 		}
-		select {
-		case <-exited:
-			return fmt.Errorf("ssh tunnel exited before forward ready")
-		case <-time.After(200 * time.Millisecond):
-		}
+		time.Sleep(200 * time.Millisecond)
 	}
 	return fmt.Errorf("ssh tunnel forward not ready")
 }
 
-func WaitTunnelForwardReadyForTest(hostPort int, exited <-chan struct{}, timeout time.Duration) error {
-	return waitTunnelForwardReady(hostPort, exited, timeout)
+func WaitTunnelForwardReadyForTest(hostPort int, proc *os.Process, timeout time.Duration) error {
+	return waitTunnelForwardReady(hostPort, proc, timeout)
 }
 
 func AttachTUI(session *models.SessionRecord, cfg *config.CellConfig, password string) error {
@@ -290,12 +291,7 @@ func AttachTUI(session *models.SessionRecord, cfg *config.CellConfig, password s
 	}
 	defer func() { _ = tunnel.Process.Kill(); _ = tunnel.Wait() }()
 
-	exited := make(chan struct{})
-	go func() {
-		_ = tunnel.Wait()
-		close(exited)
-	}()
-	if err := waitTunnelForwardReady(hostPort, exited, tunnelForwardWaitTimeout); err != nil {
+	if err := waitTunnelForwardReady(hostPort, tunnel.Process, tunnelForwardWaitTimeout); err != nil {
 		return err
 	}
 
