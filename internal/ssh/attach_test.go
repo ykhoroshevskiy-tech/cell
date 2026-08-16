@@ -2,6 +2,7 @@ package ssh_test
 
 import (
 	"net"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -93,21 +94,25 @@ func TestWaitTunnelForwardReady(t *testing.T) {
 		t.Fatal(err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	exited := make(chan struct{})
-	if err := ssh.WaitTunnelForwardReadyForTest(port, exited, 2*time.Second); err != nil {
+	if err := ssh.WaitTunnelForwardReadyForTest(port, nil, 2*time.Second); err != nil {
 		t.Fatalf("ready listener: %v", err)
 	}
 	_ = ln.Close()
 
-	exitedEarly := make(chan struct{})
-	close(exitedEarly)
-	if err := ssh.WaitTunnelForwardReadyForTest(59999, exitedEarly, time.Second); err == nil {
+	dead := exec.Command("true")
+	if err := dead.Start(); err != nil {
+		t.Fatal(err)
+	}
+	if err := dead.Wait(); err != nil {
+		t.Fatal(err)
+	}
+	if err := ssh.WaitTunnelForwardReadyForTest(59999, dead.Process, time.Second); err == nil {
 		t.Fatal("expected error when tunnel exited")
 	} else if err.Error() != "ssh tunnel exited before forward ready" {
 		t.Fatalf("exit err=%q", err)
 	}
 
-	if err := ssh.WaitTunnelForwardReadyForTest(59999, make(chan struct{}), 500*time.Millisecond); err == nil {
+	if err := ssh.WaitTunnelForwardReadyForTest(59999, nil, 500*time.Millisecond); err == nil {
 		t.Fatal("expected timeout error")
 	} else if err.Error() != "ssh tunnel forward not ready" {
 		t.Fatalf("timeout err=%q", err)
