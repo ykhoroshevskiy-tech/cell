@@ -12,10 +12,13 @@ AI coding agents need shell access, package installs, and freedom to change file
 
 ## How it works
 
-1. **Stage** — copy the repo onto a project disk
-2. **Boot** — start a Firecracker microVM with a pinned kernel/rootfs
-3. **Attach** — SSH into a tmux session where the agent runs
-4. **Sync** — pull guest workspace changes back to the host repo
+1. **Stage** — copy the repo onto a project disk (includes `.filter/opencode-server.pass`)
+2. **Boot** — Firecracker microVM with a pinned kernel/rootfs
+3. **Serve** — `opencode serve` runs in the guest (binds `127.0.0.1`)
+4. **Attach** — host runs `opencode attach` over an SSH `-L` tunnel to the guest server
+5. **Sync** — `cell pull` or auto-pull while attached syncs guest workspace changes back to the host repo
+
+The OpenCode TUI runs on your host (clipboard works locally, not over SSH). Exiting the TUI leaves the VM running; use `cell stop` to shut it down. After a host reboot, `cell start --session <id>` boots the existing disk again.
 
 You keep working as if the agent is local; the risky part stays in the VM.
 
@@ -32,7 +35,7 @@ Requires Linux with KVM. Runtime commands must run as root (`sudo cell`); `versi
 - Linux with KVM (`/dev/kvm`)
 - Root for runtime commands
 - Go 1.26+ to build
-- Host tools: `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`
+- Host tools: `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`, [OpenCode](https://github.com/sst/opencode) (`opencode` on PATH)
 
 ## Build & install
 
@@ -48,9 +51,9 @@ sudo cell bootstrap
 sudo cell launch --repo /path/to/your/repo
 
 sudo cell ps
-sudo cell ssh <session-id>
+sudo cell attach --session <session-id>
 sudo cell pull <session-id>
-sudo cell stop <session-id>
+sudo cell stop --session <session-id>
 ```
 
 ## Commands
@@ -58,11 +61,13 @@ sudo cell stop <session-id>
 | Command     | Description                                   |
 |-------------|-----------------------------------------------|
 | `bootstrap` | Download/build kernel, rootfs, firecracker    |
-| `launch`    | Stage repo, boot VM, attach SSH, auto-pull    |
+| `launch`    | Stage repo, boot VM, attach host TUI, auto-pull |
+| `start`     | Boot an existing session disk (e.g. after reboot) |
+| `attach`    | Reconnect host TUI to a running session       |
 | `stop`      | Stop one or all VMs                           |
-| `ssh`       | Reattach SSH + tmux                           |
-| `status`    | Probe VM/SSH/tmux for one session             |
-| `verify`    | Readiness check with serial tail on failure   |
+| `ssh`       | Debug SSH + tmux (serve logs)                 |
+| `status`    | Probe VM/SSH/opencode server for one session  |
+| `verify`    | Readiness check (server, not tmux) with serial tail on failure |
 | `logs`      | Print serial.log                              |
 | `ps`        | List sessions                                 |
 | `pull`      | Rsync guest workspace back to host repo       |
@@ -92,10 +97,16 @@ In-guest agent (vendor-neutral; **defaults install OpenCode**):
 |---------|---------|
 | `CELL_AGENT_URL` | OpenCode release tarball (`…/opencode-{target}.tar.gz`); empty skips install |
 | `CELL_AGENT_BIN` | `opencode` |
-| `CELL_AGENT_CMD` | `opencode --auto` |
+| `CELL_AGENT_CMD` | `opencode serve --hostname 127.0.0.1 --port 4096` |
+| `CELL_AGENT_SERVE_PORT` | `4096` |
+| `CELL_HOST_AGENT_BIN` | `opencode` |
 | `CELL_TMUX_SESSION_NAME` | `agent` |
 
 `{target}` in the URL is replaced with `linux-x64-baseline` / `linux-arm64-baseline`.
+
+The host must have OpenCode installed (`CELL_HOST_AGENT_BIN` or `opencode` on PATH). `cell launch` / `cell attach` fail fast if it is missing; the VM keeps running.
+
+After upgrading, rebuild rootfs once so guest health checks have `curl`: `sudo cell bootstrap --rebuild-rootfs`.
 
 Runtime:
 
