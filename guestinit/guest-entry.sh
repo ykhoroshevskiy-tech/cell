@@ -117,6 +117,17 @@ setup_ssh() {
 
 start_tmux_session() {
   AGENT_HOME="/home/${AGENT_USER}"
+  PASS_FILE="${REPO_DIR}/.filter/opencode-server.pass"
+  if [ ! -s "${PASS_FILE}" ]; then
+    log "ERROR: missing ${PASS_FILE}"
+    return 1
+  fi
+  cat > /run/opencode.env <<EOF
+OPENCODE_SERVER_PASSWORD=$(cat "${PASS_FILE}")
+OPENCODE_PERMISSION={"*":"allow"}
+EOF
+  chmod 600 /run/opencode.env
+  chown "${AGENT_USER}:${AGENT_USER}" /run/opencode.env
   ERR="/run/tmux-start.err"
   agent_tmux() {
     su - "${AGENT_USER}" -c "$*"
@@ -133,7 +144,8 @@ start_tmux_session() {
        export npm_config_cache=/tmp/npm-cache; \
        export XDG_CACHE_HOME=${AGENT_HOME}/.cache; export XDG_CONFIG_HOME=${AGENT_HOME}/.config; \
        export PATH=/usr/local/bin:/usr/bin:/bin; \
-       exec zsh -l'
+       set -a; . /run/opencode.env; set +a; \
+       exec opencode serve --hostname 127.0.0.1 --port 4096'
   " 2>"${ERR}"; then
     if agent_tmux "tmux has-session -t '${TMUX_SESSION}'" 2>/dev/null; then
       log "tmux session ${TMUX_SESSION} started"
