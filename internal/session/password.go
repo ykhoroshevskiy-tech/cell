@@ -64,5 +64,8 @@ func CopyPasswordToDiskRoot(sessionDir, diskRoot string) error {
 	if err := os.MkdirAll(filepath.Dir(dst), 0700); err != nil {
 		return err
 	}
-	return os.WriteFile(dst, []byte(pw+"\n"), 0600)
+	if err := os.WriteFile(dst, []byte(pw+"\n"), 0600); err != nil {
+		return err
+	}
+	return os.Chmod(dst, 0600)
 }
