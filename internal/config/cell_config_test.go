@@ -107,6 +107,46 @@ func TestLoadArtifactPinEnvOverrides(t *testing.T) {
 	}
 }
 
+func TestLoadAgentServeDefaults(t *testing.T) {
+	t.Setenv("CELL_AGENT_CMD", "")
+	t.Setenv("CELL_AGENT_SERVE_PORT", "")
+	t.Setenv("CELL_HOST_AGENT_BIN", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.AgentCmd != "opencode serve --hostname 127.0.0.1 --port 4096" {
+		t.Fatalf("AgentCmd = %q", cfg.AgentCmd)
+	}
+	if cfg.AgentServePort != 4096 {
+		t.Fatalf("AgentServePort = %d", cfg.AgentServePort)
+	}
+	if cfg.HostAgentBin != "opencode" {
+		t.Fatalf("HostAgentBin = %q", cfg.HostAgentBin)
+	}
+}
+
+func TestLoadAgentServeEnvOverrides(t *testing.T) {
+	t.Setenv("CELL_AGENT_CMD", "opencode serve --hostname 127.0.0.1 --port 4097")
+	t.Setenv("CELL_AGENT_SERVE_PORT", "4097")
+	t.Setenv("CELL_HOST_AGENT_BIN", "/usr/local/bin/opencode")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.AgentCmd != "opencode serve --hostname 127.0.0.1 --port 4097" {
+		t.Fatalf("AgentCmd = %q", cfg.AgentCmd)
+	}
+	if cfg.AgentServePort != 4097 {
+		t.Fatalf("AgentServePort = %d", cfg.AgentServePort)
+	}
+	if cfg.HostAgentBin != "/usr/local/bin/opencode" {
+		t.Fatalf("HostAgentBin = %q", cfg.HostAgentBin)
+	}
+}
+
 func TestLoadDerivesManagedSquashfsPathFromVersion(t *testing.T) {
 	t.Setenv("CELL_IMAGES_DIR", "/tmp/cell-images")
 	t.Setenv("CELL_SQUASHFS_VERSION", "22.04")

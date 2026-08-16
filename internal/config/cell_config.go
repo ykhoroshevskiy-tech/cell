@@ -43,6 +43,8 @@ type CellConfig struct {
 	AgentURL string `mapstructure:"agent_url"` // empty = skip install; may contain {target}
 	AgentBin string `mapstructure:"agent_bin"` // binary name inside tarball and on PATH
 	AgentCmd string `mapstructure:"agent_cmd"` // command run in tmux on attach
+	AgentServePort int    `mapstructure:"agent_serve_port"`
+	HostAgentBin   string `mapstructure:"host_agent_bin"`
 }
 
 func managedSquashfsPath(imagesDir, version string) string {
@@ -84,7 +86,9 @@ func Default() *CellConfig {
 		SquashfsVersion:     "24.04",
 		AgentURL:            "https://github.com/anomalyco/opencode/releases/latest/download/opencode-{target}.tar.gz",
 		AgentBin:            "opencode",
-		AgentCmd:            "opencode --auto",
+		AgentCmd:            "opencode serve --hostname 127.0.0.1 --port 4096",
+		AgentServePort:      4096,
+		HostAgentBin:        "opencode",
 	}
 }
 
@@ -119,6 +123,7 @@ func Load() (*CellConfig, error) {
 		"auto_pull", "auto_pull_interval_sec", "rebuild_rootfs", "ssh_public_key",
 		"ci_prefix", "kernel_version", "firecracker_version", "squashfs_version",
 		"agent_url", "agent_bin", "agent_cmd",
+		"agent_serve_port", "host_agent_bin",
 	}
 	for _, k := range keys {
 		_ = v.BindEnv(k)
@@ -151,6 +156,8 @@ func Load() (*CellConfig, error) {
 	v.SetDefault("agent_url", def.AgentURL)
 	v.SetDefault("agent_bin", def.AgentBin)
 	v.SetDefault("agent_cmd", def.AgentCmd)
+	v.SetDefault("agent_serve_port", def.AgentServePort)
+	v.SetDefault("host_agent_bin", def.HostAgentBin)
 
 	cfg := &CellConfig{}
 	if err := v.Unmarshal(cfg); err != nil {
@@ -203,6 +210,12 @@ func Load() (*CellConfig, error) {
 	}
 	if cfg.AgentCmd == "" {
 		cfg.AgentCmd = def.AgentCmd
+	}
+	if cfg.AgentServePort == 0 {
+		cfg.AgentServePort = 4096
+	}
+	if cfg.HostAgentBin == "" {
+		cfg.HostAgentBin = "opencode"
 	}
 	// AgentURL: empty after env means skip install; only fill default when unset via SetDefault.
 	// viper leaves "" if CELL_AGENT_URL="" intentionally — do not replace empty with default here.
