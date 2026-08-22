@@ -9,6 +9,7 @@ TMP=""
 REPO_A=""
 REPO_B=""
 REPO_C=""
+LAST_SESSION_ID=""
 declare -a E2E_SESSIONS=()
 
 log() { printf 'e2e: %s\n' "$*"; }
@@ -28,7 +29,7 @@ preflight() {
 	local f="${CELL_FIRECRACKER_BIN:-/var/lib/cell/images/bin/firecracker}"
 	[[ -f "$k" && -f "$r" && -x "$f" ]] || die "bootstrap artifacts missing; run: sudo cell bootstrap"
 
-	for cmd in python3 ip bridge ssh ping; do
+	for cmd in python3 ip bridge ssh; do
 		command -v "$cmd" >/dev/null || die "missing host tool: $cmd"
 	done
 }
@@ -40,9 +41,9 @@ setup_env() {
 	export CELL_KERNEL_PATH="${CELL_KERNEL_PATH:-/var/lib/cell/images/vmlinux}"
 	export CELL_ROOTFS_PATH="${CELL_ROOTFS_PATH:-/var/lib/cell/images/rootfs.ext4}"
 	export CELL_FIRECRACKER_BIN="${CELL_FIRECRACKER_BIN:-/var/lib/cell/images/bin/firecracker}"
-	export CELL_VCPU_COUNT=1
-	export CELL_MEM_SIZE_MIB=512
-	export CELL_PROJECT_DISK_SIZE_MB=256
+	export CELL_VCPU_COUNT=2
+	export CELL_MEM_SIZE_MIB=4096
+	export CELL_PROJECT_DISK_SIZE_MB=512
 	export CELL_AUTO_PULL=false
 	mkdir -p "$CELL_DATA_DIR"
 
@@ -54,6 +55,9 @@ setup_env() {
 		echo "e2e" >"$d/README"
 	done
 	log "CELL_DATA_DIR=$CELL_DATA_DIR"
+	log "CELL_IMAGES_DIR=$CELL_IMAGES_DIR"
+	log "kernel=$CELL_KERNEL_PATH"
+	log "vcpu=$CELL_VCPU_COUNT mem=${CELL_MEM_SIZE_MIB}MiB disk=${CELL_PROJECT_DISK_SIZE_MB}MB"
 }
 
 session_field() {
@@ -70,27 +74,40 @@ for s in json.load(sys.stdin):
 
 launch_session() {
 	local repo="$1"
-	local out id
-	out="$(cell launch --no-attach --repo "$repo" 2>&1)" || {
-		printf '%s\n' "$out" >&2
+	local id
+	LAST_SESSION_ID=""
+	log "---- cell -v launch --no-attach --repo $repo ----"
+	# Do not wrap in $() or script: this function used to run under command
+	# substitution, which hid all cell output until exit.
+	if ! "$CELL_BIN" -v launch --no-attach --repo "$repo"; then
 		die "launch failed for $repo"
-	}
-	printf '%s\n' "$out" >&2
-	id="$(printf '%s\n' "$out" | sed -n 's/^Session \([^ ]*\) ready at.*/\1/p')"
-	[[ -n "$id" ]] || die "could not parse session id from launch output"
+	fi
+	id="$(cell ps --json --all | python3 -c "
+import json, sys
+rows = json.load(sys.stdin)
+rows.sort(key=lambda s: s.get('created_at', ''))
+print(rows[-1]['session_id'] if rows else '')
+")"
+	[[ -n "$id" ]] || die "could not parse session id after launch"
+	log "launched session $id"
 	E2E_SESSIONS+=("$id")
-	printf '%s' "$id"
+	LAST_SESSION_ID="$id"
 }
 
 stop_rm_session() {
 	local id="$1"
-	cell stop --session "$id" >/dev/null 2>&1 || true
-	cell rm --session "$id" >/dev/null 2>&1 || true
-	local kept=()
-	for s in "${E2E_SESSIONS[@]}"; do
+	log "stop --session $id"
+	cell stop --session "$id" || true
+	log "rm --session $id"
+	cell rm --session "$id" || true
+	local kept=() s
+	for s in ${E2E_SESSIONS[@]+"${E2E_SESSIONS[@]}"}; do
 		[[ "$s" == "$id" ]] || kept+=("$s")
 	done
-	E2E_SESSIONS=("${kept[@]}")
+	E2E_SESSIONS=()
+	for s in ${kept[@]+"${kept[@]}"}; do
+		E2E_SESSIONS+=("$s")
+	done
 }
 
 ssh_guest() {
@@ -100,11 +117,18 @@ ssh_guest() {
 	local ip
 	ip="$(session_field "$id" guest_ip)"
 	[[ -n "$ip" ]] || die "no guest_ip for session $id"
-	ssh -i "$key" \
+	ssh -F /dev/null -i "$key" \
+		-o BatchMode=yes \
+		-o ConnectTimeout=5 \
 		-o StrictHostKeyChecking=no \
 		-o UserKnownHostsFile=/dev/null \
 		-o IdentitiesOnly=yes \
 		"agent@$ip" "$@"
+}
+
+guest_tcp() {
+	local id="$1" host="$2" port="$3"
+	ssh_guest "$id" curl --connect-only --connect-timeout 2 --max-time 3 -sS -o /dev/null "http://${host}:${port}/"
 }
 
 assert_bridge() {
@@ -155,11 +179,11 @@ assert_isolation() {
 	local id_a="$1" id_b="$2"
 	local ip_b
 	ip_b="$(session_field "$id_b" guest_ip)"
-	if ssh_guest "$id_a" ping -c1 -W2 "$ip_b"; then
-		die "guest A ping to B should fail (isolation broken)"
+	if guest_tcp "$id_a" "$ip_b" 22; then
+		die "guest A TCP to B:22 should fail (isolation broken)"
 	fi
-	log "guest-to-guest ping blocked"
-	ssh_guest "$id_a" ping -c1 -W3 1.1.1.1 >/dev/null || die "guest A cannot reach internet (1.1.1.1)"
+	log "guest-to-guest TCP :22 blocked"
+	guest_tcp "$id_a" 1.1.1.1 443 || die "guest A cannot TCP 1.1.1.1:443"
 	log "guest internet egress ok"
 }
 
@@ -193,7 +217,7 @@ sys.exit(0 if not any(s.get('vm_running') for s in data) else 1)
 
 cleanup() {
 	local id
-	for id in "${E2E_SESSIONS[@]}"; do
+	for id in ${E2E_SESSIONS[@]+"${E2E_SESSIONS[@]}"}; do
 		stop_rm_session "$id" || true
 	done
 	[[ -n "$TMP" && -d "$TMP" ]] && rm -rf "$TMP"
@@ -205,11 +229,13 @@ main() {
 	preflight
 	setup_env
 
-	log "launching VM A"
+	log "launching VM A (live cell -v output follows)"
 	local id_a id_b id_c ip_b tap_a
-	id_a="$(launch_session "$REPO_A")"
-	log "launching VM B"
-	id_b="$(launch_session "$REPO_B")"
+	launch_session "$REPO_A"
+	id_a="$LAST_SESSION_ID"
+	log "launching VM B (live cell -v output follows)"
+	launch_session "$REPO_B"
+	id_b="$LAST_SESSION_ID"
 
 	assert_two_vms "$id_a" "$id_b"
 	assert_isolation "$id_a" "$id_b"
@@ -234,7 +260,8 @@ main() {
 	log "stale TAP cleanup ok"
 
 	log "launching VM C (should reuse B's IP $ip_b)"
-	id_c="$(launch_session "$REPO_C")"
+	launch_session "$REPO_C"
+	id_c="$LAST_SESSION_ID"
 	local ip_c
 	ip_c="$(session_field "$id_c" guest_ip)"
 	[[ "$ip_c" == "$ip_b" ]] || die "lease reuse failed: C=$ip_c want $ip_b"
