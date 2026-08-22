@@ -42,6 +42,7 @@ func newRootCmd(cfg *config.CellConfig) *cobra.Command {
 	root.AddCommand(newPsCmd(cfg))
 	root.AddCommand(newPullCmd(cfg))
 	root.AddCommand(newRescueCmd(cfg))
+	root.AddCommand(newRmCmd(cfg))
 	root.AddCommand(newVersionCmd())
 	return root
 }

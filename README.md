@@ -44,6 +44,12 @@ go build -o cell ./cmd/cell
 sudo install -m 755 cell /usr/bin/cell
 ```
 
+Optional network smoke test (root, KVM, prior bootstrap):
+
+```sh
+sudo scripts/e2e-network.sh ./cell
+```
+
 ## Quick start
 
 ```sh
@@ -65,6 +71,7 @@ sudo cell stop --session <session-id>
 | `start`     | Boot an existing session disk (e.g. after reboot) |
 | `attach`    | Reconnect host TUI to a running session       |
 | `stop`      | Stop one or all VMs                           |
+| `rm`        | Remove a stopped session and free its guest IP |
 | `ssh`       | Debug SSH + tmux (serve logs)                 |
 | `status`    | Probe VM/SSH/opencode server for one session  |
 | `verify`    | Readiness check (server, not tmux) with serial tail on failure |
@@ -117,6 +124,16 @@ Runtime:
 | `CELL_MEM_SIZE_MIB`      | `8192`            |
 | `CELL_AUTO_PULL`         | `true`            |
 | `CELL_AUTO_PULL_INTERVAL_SEC` | `30`         |
+
+## Networking
+
+All sessions share one Linux bridge (`cell0`, `172.16.107.1/24`). Each session gets a stable guest IP (`.2`–`.254`) persisted in `session.json` (`network_version: 2`). TAP devices attach to the bridge without host-side IP addresses; bridge port isolation blocks guest-to-guest L2 traffic.
+
+Before `launch`, `start`, `stop`, and `rm`, cell reconciles bridge/TAP/firewall state under `/run/lock/cell-network.lock`. Stopped sessions keep their IP lease until removed.
+
+Legacy sessions (pre-bridge network records) are not migrated. Remove them with `sudo cell rm --session <id>` (or `--legacy` for old records), then launch again.
+
+After building, `sudo scripts/e2e-network.sh ./cell` smoke-tests two VMs (distinct IPs, guest isolation, stale TAP cleanup, lease reuse). Host reboot recovery (`cell start`) is not automated in that script.
 
 ## License
 

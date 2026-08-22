@@ -1,31 +1,53 @@
-package models_test
+package models
 
 import (
+	"strings"
 	"testing"
-
-	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 )
 
-func TestAllocateNetwork(t *testing.T) {
-	cfg := models.AllocateNetwork("ab9e30a73a2f")
-	if cfg.TapName != "ctap-ab9e30a7" {
+func TestNewNetworkConfigV2(t *testing.T) {
+	cfg := NewNetworkConfig("abc123def", "172.16.107.10")
+	if cfg.Version != NetworkVersion {
+		t.Fatalf("version=%d", cfg.Version)
+	}
+	if cfg.TapName != "ctap-abc123de" {
 		t.Fatalf("tap=%q", cfg.TapName)
 	}
-	if cfg.GuestIP != "172.16.172.2" {
-		t.Fatalf("guest_ip=%q", cfg.GuestIP)
+	if cfg.HostIP != BridgeHostIP || cfg.CIDR != BridgeCIDR {
+		t.Fatalf("host=%s cidr=%d", cfg.HostIP, cfg.CIDR)
 	}
-	if cfg.HostIP != "172.16.172.1" {
-		t.Fatalf("host_ip=%q", cfg.HostIP)
+	if cfg.GuestIP != "172.16.107.10" {
+		t.Fatalf("guest=%s", cfg.GuestIP)
 	}
-	if cfg.CIDR != 30 {
-		t.Fatalf("cidr=%d", cfg.CIDR)
+	if !strings.Contains(cfg.KernelBootArgs(), "ip=172.16.107.10::172.16.107.1:255.255.255.0") {
+		t.Fatalf("boot args: %s", cfg.KernelBootArgs())
 	}
 }
 
-func TestKernelBootArgs(t *testing.T) {
-	cfg := models.AllocateNetwork("ab9e30a73a2f")
-	want := "console=ttyS0 reboot=k panic=1 pci=off init=/opt/guest-init/guest-entry.sh ip=172.16.172.2::172.16.172.1:255.255.255.252::eth0:off"
-	if got := cfg.KernelBootArgs(); got != want {
-		t.Fatalf("KernelBootArgs()=%q want %q", got, want)
+func TestValidateNetworkConfigOK(t *testing.T) {
+	cfg := NewNetworkConfig("abc123", "172.16.107.2")
+	if err := ValidateNetworkConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestValidateNetworkConfigLegacyVersion(t *testing.T) {
+	cfg := NewNetworkConfig("abc123", "172.16.107.2")
+	cfg.Version = 1
+	if err := ValidateNetworkConfig(cfg); err == nil {
+		t.Fatal("expected legacy rejection")
+	}
+}
+
+func TestValidateNetworkConfigBadGuestIP(t *testing.T) {
+	cfg := NewNetworkConfig("abc123", "172.16.107.1")
+	if err := ValidateNetworkConfig(cfg); err == nil {
+		t.Fatal("expected host IP rejection")
+	}
+}
+
+func TestValidateNetworkConfigMissing(t *testing.T) {
+	if err := ValidateNetworkConfig(nil); err == nil {
+		t.Fatal("expected error")
 	}
 }
