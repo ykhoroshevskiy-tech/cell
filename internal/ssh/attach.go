@@ -156,7 +156,7 @@ func WaitRuntimeReady(session *models.SessionRecord, cfg *config.CellConfig) err
 func HealthProbeRemote(cfg *config.CellConfig) string {
 	passFile := fmt.Sprintf("%s/.filter/opencode-server.pass", cfg.GuestRepoDir)
 	return fmt.Sprintf(
-		"curl -sf -u opencode:$(cat %s) http://127.0.0.1:%d/global/health",
+		"curl -sf --connect-timeout 2 --max-time 3 -u opencode:$(cat %s) http://127.0.0.1:%d/global/health",
 		passFile, cfg.AgentServePort,
 	)
 }
