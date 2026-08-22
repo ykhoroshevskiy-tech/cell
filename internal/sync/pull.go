@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"syscall"
 
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
@@ -27,6 +29,24 @@ func ValidateDest(dest string) error {
 	return nil
 }
 
+func DestOwner(path string) (uid, gid int, err error) {
+	fi, err := os.Lstat(path)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return 0, 0, err
+		}
+		fi, err = os.Lstat(filepath.Dir(path))
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, 0, fmt.Errorf("no unix stat for %s", path)
+	}
+	return int(st.Uid), int(st.Gid), nil
+}
+
 func PullWorkspace(session *models.SessionRecord, cfg *config.CellConfig, opts models.PullOptions) (*models.PullResult, error) {
 	dest := opts.Dest
 	if dest == "" {
@@ -42,7 +62,12 @@ func PullWorkspace(session *models.SessionRecord, cfg *config.CellConfig, opts m
 		return nil, fmt.Errorf("session has no ssh key")
 	}
 
-	args := []string{"-av"}
+	uid, gid, err := DestOwner(dest)
+	if err != nil {
+		return nil, fmt.Errorf("dest owner: %w", err)
+	}
+
+	args := []string{"-av", "--no-owner", "--no-group", fmt.Sprintf("--chown=%d:%d", uid, gid)}
 	if opts.DryRun {
 		args = append(args, "-n")
 	}
