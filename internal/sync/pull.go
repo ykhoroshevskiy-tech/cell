@@ -8,6 +8,7 @@ import (
 
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
+	"github.com/ykhoroshevskiy-tech/cell/internal/ssh"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
 )
 
@@ -50,10 +51,7 @@ func PullWorkspace(session *models.SessionRecord, cfg *config.CellConfig, opts m
 	}
 	args = append(args, "--exclude=.filter-staged")
 
-	rsh := fmt.Sprintf(
-		"ssh -i %s -o IdentitiesOnly=yes -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null",
-		session.SSHKeyPath,
-	)
+	rsh := ssh.RemoteShell(session.SSHKeyPath)
 	guest := fmt.Sprintf("%s@%s:%s/", cfg.SSHUser, session.NetworkConfig.GuestIP, cfg.GuestRepoDir)
 	args = append(args, "-e", rsh, guest, dest+"/")
 
