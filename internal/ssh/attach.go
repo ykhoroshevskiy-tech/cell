@@ -27,12 +27,28 @@ var fatalPatterns = []struct {
 
 func sshBaseArgs(keyPath string) []string {
 	return []string{
+		"-F", "/dev/null",
 		"-i", keyPath,
 		"-o", "IdentitiesOnly=yes",
 		"-o", "BatchMode=yes",
+		"-o", "ConnectTimeout=5",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 	}
+}
+
+func RemoteShell(keyPath string) string {
+	return "ssh " + strings.Join(sshBaseArgs(keyPath), " ")
+}
+
+func sshPortOpen(guestIP string, port int) bool {
+	addr := net.JoinHostPort(guestIP, fmt.Sprintf("%d", port))
+	conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
+	if err != nil {
+		return false
+	}
+	_ = conn.Close()
+	return true
 }
 
 func WaitForSSH(guestIP string, port int, timeout time.Duration) error {
@@ -164,7 +180,7 @@ func SessionStatus(session *models.SessionRecord, cfg *config.CellConfig) *model
 		st.GuestIP = session.NetworkConfig.GuestIP
 		st.TapName = session.NetworkConfig.TapName
 		if st.VMRunning {
-			st.SSHReachable = WaitForSSH(session.NetworkConfig.GuestIP, 22, time.Second) == nil
+			st.SSHReachable = sshPortOpen(session.NetworkConfig.GuestIP, 22)
 		}
 	}
 	st.RuntimeReady = RuntimeReady(session.SerialLogPath)

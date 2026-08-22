@@ -58,9 +58,11 @@ func TestTunnelSSHArgs(t *testing.T) {
 		"-N",
 		"-o", "ExitOnForwardFailure=yes",
 		"-L", "18000:127.0.0.1:4096",
+		"-F", "/dev/null",
 		"-i", "/tmp/id",
 		"-o", "IdentitiesOnly=yes",
 		"-o", "BatchMode=yes",
+		"-o", "ConnectTimeout=5",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"agent@172.16.1.2",
@@ -72,6 +74,19 @@ func TestTunnelSSHArgs(t *testing.T) {
 		if got[i] != want[i] {
 			t.Fatalf("arg[%d]=%q want %q", i, got[i], want[i])
 		}
+	}
+}
+
+func TestRemoteShell(t *testing.T) {
+	got := ssh.RemoteShell("/tmp/id")
+	if !strings.HasPrefix(got, "ssh -F /dev/null ") {
+		t.Fatalf("RemoteShell=%q", got)
+	}
+	if !strings.Contains(got, "-i /tmp/id") {
+		t.Fatalf("missing key: %q", got)
+	}
+	if strings.Contains(got, "KnownHostsCommand") {
+		t.Fatalf("must not use KnownHostsCommand: %q", got)
 	}
 }
 
