@@ -12,5 +12,5 @@ func NewNetworkProvider(cfg *config.CellConfig) (NetworkProvider, error) {
 	if runtime.GOOS != "linux" {
 		return nil, fmt.Errorf("cell requires Linux with KVM")
 	}
-	return NewTAP(), nil
+	return NewBridge(), nil
 }

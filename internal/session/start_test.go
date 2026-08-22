@@ -38,6 +38,19 @@ func TestStartPreflightOK(t *testing.T) {
 	}
 }
 
+func TestStartPreflightLegacyNetwork(t *testing.T) {
+	s := &models.SessionRecord{
+		ProjectDiskPath: filepath.Join(t.TempDir(), "disk.ext4"),
+		NetworkConfig:   &models.NetworkConfig{Version: 1, GuestIP: "172.16.107.2"},
+	}
+	if err := os.WriteFile(s.ProjectDiskPath, []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := models.ValidateNetworkConfig(s.NetworkConfig); err == nil {
+		t.Fatal("expected legacy rejection")
+	}
+}
+
 func TestPrepareVMBootArtifacts(t *testing.T) {
 	dir := t.TempDir()
 	s := &models.SessionRecord{SessionID: "abc123"}

@@ -29,6 +29,7 @@ func sshBaseArgs(keyPath string) []string {
 	return []string{
 		"-i", keyPath,
 		"-o", "IdentitiesOnly=yes",
+		"-o", "BatchMode=yes",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 	}
@@ -104,7 +105,7 @@ func WaitRuntimeReady(session *models.SessionRecord, cfg *config.CellConfig) err
 	var offset int64
 
 	for time.Now().Before(deadline) {
-		if session.FCPid > 0 && !VMRunning(session.FCPid) {
+		if session.FCPid > 0 && !VMRunningForSession(session) {
 			return fmt.Errorf("VM process exited before runtime ready\n--- serial tail ---\n%s",
 				ReadTail(session.SerialLogPath, 20))
 		}
@@ -158,7 +159,7 @@ func ServerReady(session *models.SessionRecord, cfg *config.CellConfig) bool {
 
 func SessionStatus(session *models.SessionRecord, cfg *config.CellConfig) *models.SessionStatus {
 	st := &models.SessionStatus{SessionID: session.SessionID}
-	st.VMRunning = VMRunning(session.FCPid)
+	st.VMRunning = VMRunningForSession(session)
 	if session.NetworkConfig != nil {
 		st.GuestIP = session.NetworkConfig.GuestIP
 		st.TapName = session.NetworkConfig.TapName

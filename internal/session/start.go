@@ -40,7 +40,10 @@ func (sm *SessionManager) Start(ctx context.Context, sessionID string, attach bo
 	if err != nil {
 		return err
 	}
-	if err := StartPreflight(session, ssh.VMRunning(session.FCPid)); err != nil {
+	if err := StartPreflight(session, ssh.VMRunningForSession(session)); err != nil {
+		return err
+	}
+	if err := models.ValidateNetworkConfig(session.NetworkConfig); err != nil {
 		return err
 	}
 	verbose.V("start: booting existing disk %s", session.ProjectDiskPath)

@@ -15,7 +15,6 @@ import (
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
 	"github.com/ykhoroshevskiy-tech/cell/internal/hypervisor"
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
-	"github.com/ykhoroshevskiy-tech/cell/internal/network"
 	"github.com/ykhoroshevskiy-tech/cell/internal/ssh"
 	"github.com/ykhoroshevskiy-tech/cell/internal/stage"
 	"github.com/ykhoroshevskiy-tech/cell/internal/sync"
@@ -25,7 +24,6 @@ import (
 type SessionManager struct {
 	cfg        *config.CellConfig
 	hypervisor hypervisor.Hypervisor
-	network    network.NetworkProvider
 }
 
 func NewSessionManager(cfg *config.CellConfig) (*SessionManager, error) {
@@ -33,11 +31,7 @@ func NewSessionManager(cfg *config.CellConfig) (*SessionManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	net, err := network.NewNetworkProvider(cfg)
-	if err != nil {
-		return nil, err
-	}
-	return &SessionManager{cfg: cfg, hypervisor: hv, network: net}, nil
+	return &SessionManager{cfg: cfg, hypervisor: hv}, nil
 }
 
 func (sm *SessionManager) Launch(ctx context.Context, repoPath string, attach bool) (*models.SessionRecord, error) {
@@ -114,11 +108,15 @@ func (sm *SessionManager) prepareSession(repoSource string) (*models.SessionReco
 		return nil, err
 	}
 
-	netCfg := models.AllocateNetwork(session.SessionID)
+	netCfg, err := sm.allocateNetwork(id)
+	if err != nil {
+		return nil, err
+	}
 	session.NetworkConfig = netCfg
 	verbose.V("session %s: tap=%s guest=%s host=%s", id, netCfg.TapName, netCfg.GuestIP, netCfg.HostIP)
-	netData, _ := json.MarshalIndent(netCfg, "", "  ")
-	_ = os.WriteFile(filepath.Join(session.SessionDir, "network.json"), netData, 0644)
+	if err := writeNetworkJSON(session.SessionDir, netCfg); err != nil {
+		return nil, err
+	}
 
 	kp, err := ssh.WriteKeyPair(session.SessionDir)
 	if err != nil {
@@ -212,11 +210,14 @@ func (sm *SessionManager) buildDisk(session *models.SessionRecord) error {
 }
 
 func (sm *SessionManager) startVM(ctx context.Context, session *models.SessionRecord) error {
-	if ssh.VMRunning(session.FCPid) {
+	if ssh.VMRunningForSession(session) {
 		return fmt.Errorf("VM already running for session %s", session.SessionID)
 	}
-	verbose.V("launch: setting up network tap=%s", session.NetworkConfig.TapName)
-	if err := sm.network.Setup(session.NetworkConfig); err != nil {
+	if err := models.ValidateNetworkConfig(session.NetworkConfig); err != nil {
+		return err
+	}
+	verbose.V("launch: reconciling network tap=%s", session.NetworkConfig.TapName)
+	if err := sm.reconcileNetwork(session.NetworkConfig); err != nil {
 		session.State = models.StateFailed
 		session.Error = err.Error()
 		_ = sm.saveSession(session)
@@ -254,7 +255,7 @@ func (sm *SessionManager) startVM(ctx context.Context, session *models.SessionRe
 	verbose.V("launch: spawning firecracker %s --api-sock %s", sm.cfg.FirecrackerBin, session.SocketPath)
 	pid, err := sm.hypervisor.Start(ctx, vmConfig, session.SerialLogPath, session.SocketPath)
 	if err != nil {
-		_ = sm.network.Teardown(session.NetworkConfig)
+		_ = sm.reconcileNetwork(nil)
 		session.State = models.StateFailed
 		session.Error = err.Error()
 		_ = sm.saveSession(session)
@@ -290,11 +291,11 @@ func (sm *SessionManager) Stop(ctx context.Context, sessionID string) error {
 		_ = sm.hypervisor.Stop(session.FCPid)
 		session.FCPid = 0
 	}
-	if session.NetworkConfig != nil {
-		_ = sm.network.Teardown(session.NetworkConfig)
-	}
 	session.State = models.StateStopped
-	return sm.saveSession(session)
+	if err := sm.saveSession(session); err != nil {
+		return err
+	}
+	return sm.reconcileNetwork(nil)
 }
 
 func (sm *SessionManager) StopAll(ctx context.Context) (int, []error) {
@@ -323,7 +324,7 @@ func (sm *SessionManager) Attach(ctx context.Context, sessionID string) error {
 	if err != nil {
 		return err
 	}
-	if !ssh.VMRunning(session.FCPid) {
+	if !ssh.VMRunningForSession(session) {
 		return fmt.Errorf("VM not running; cell start --session %s", sessionID)
 	}
 	pullCtx, cancelPull := context.WithCancel(ctx)
@@ -349,7 +350,7 @@ func (sm *SessionManager) Pull(ctx context.Context, sessionID string, opts model
 	if err != nil {
 		return nil, err
 	}
-	if !ssh.VMRunning(session.FCPid) {
+	if !ssh.VMRunningForSession(session) {
 		return nil, fmt.Errorf("VM not running; start session or pull while VM is up")
 	}
 	if session.NetworkConfig == nil {

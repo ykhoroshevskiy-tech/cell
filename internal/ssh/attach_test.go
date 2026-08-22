@@ -60,6 +60,7 @@ func TestTunnelSSHArgs(t *testing.T) {
 		"-L", "18000:127.0.0.1:4096",
 		"-i", "/tmp/id",
 		"-o", "IdentitiesOnly=yes",
+		"-o", "BatchMode=yes",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"agent@172.16.1.2",
