@@ -128,7 +128,8 @@ ssh_guest() {
 
 guest_tcp() {
 	local id="$1" host="$2" port="$3"
-	ssh_guest "$id" curl --connect-only --connect-timeout 2 --max-time 3 -sS -o /dev/null "http://${host}:${port}/"
+	# Guest curl is too old for --connect-only; bash /dev/tcp is enough. timeout: TCP SYN can hang.
+	ssh_guest "$id" "timeout 2 bash -c 'echo >/dev/tcp/${host}/${port}'"
 }
 
 assert_bridge() {
