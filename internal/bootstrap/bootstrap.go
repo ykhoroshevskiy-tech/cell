@@ -309,34 +309,14 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 
 	// Firecracker CI squashfs has no dpkg status — install missing pkgs via
 	// jammy .deb extract (host may be a different Ubuntu release).
-	// jammy zsh.deb installs to /bin/zsh (not /usr/bin); rsync to /usr/bin/rsync
-	// rsync needs libpopt.so.0 (libpopt0) or guest pull fails at runtime
-	if err := ensureJammyDebs(root, []debPkg{
-		{Name: "zsh-common", Binary: ""}, // supporting files for zsh
-		{Name: "zsh", Binary: "/bin/zsh"},
-		{Name: "libpopt0", Binary: "/usr/lib/x86_64-linux-gnu/libpopt.so.0"},
-		{Name: "rsync", Binary: "/usr/bin/rsync"},
-		{Name: "curl", Binary: "/usr/bin/curl"},
-	}); err != nil {
+	if err := ensureJammyDebs(root, guestJammyDebs()); err != nil {
+		return err
+	}
+	if err := writeAgentSudoers(root); err != nil {
 		return err
 	}
 
-	customize := `
-set -eux
-id agent >/dev/null 2>&1 || useradd -m -s /bin/zsh agent
-mkdir -p /run/sshd
-command -v tmux
-command -v rsync
-command -v curl
-command -v sshd
-command -v zsh
-test -x /opt/guest-init/guest-entry.sh
-if ldd /usr/bin/rsync 2>/dev/null | grep -q 'not found'; then
-  echo "rsync has unresolved shared libraries:" >&2
-  ldd /usr/bin/rsync >&2 || true
-  exit 1
-fi
-`
+	customize := guestCustomizeScript()
 	fmt.Println("chroot: customize (user, verify binaries)…")
 	if err := runChroot(root, "/bin/bash", "-c", customize); err != nil {
 		return fmt.Errorf("chroot customize: %w", err)
@@ -504,6 +484,56 @@ func writeAgentStub(root, binName string) {
 type debPkg struct {
 	Name   string
 	Binary string // guest path to check; empty = always extract (dependency)
+}
+
+// guestJammyDebs lists packages extracted into the guest rootfs without apt/dpkg DB.
+// jammy zsh.deb installs to /bin/zsh (not /usr/bin); rsync to /usr/bin/rsync.
+// rsync needs libpopt.so.0 (libpopt0) or guest pull fails at runtime.
+func guestJammyDebs() []debPkg {
+	return []debPkg{
+		{Name: "zsh-common", Binary: ""}, // supporting files for zsh
+		{Name: "zsh", Binary: "/bin/zsh"},
+		{Name: "libpopt0", Binary: "/usr/lib/x86_64-linux-gnu/libpopt.so.0"},
+		{Name: "rsync", Binary: "/usr/bin/rsync"},
+		{Name: "curl", Binary: "/usr/bin/curl"},
+		{Name: "sudo", Binary: "/usr/bin/sudo"},
+		{Name: "git", Binary: "/usr/bin/git"},
+	}
+}
+
+func agentSudoersBody() string {
+	return "agent ALL=(ALL) NOPASSWD:ALL\nDefaults:agent !requiretty\n"
+}
+
+func writeAgentSudoers(root string) error {
+	dir := filepath.Join(root, "etc", "sudoers.d")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	path := filepath.Join(dir, "agent")
+	return os.WriteFile(path, []byte(agentSudoersBody()), 0440)
+}
+
+func guestCustomizeScript() string {
+	return `
+set -eux
+id agent >/dev/null 2>&1 || useradd -m -s /bin/zsh agent
+mkdir -p /run/sshd
+command -v tmux
+command -v rsync
+command -v curl
+command -v sshd
+command -v zsh
+command -v git
+command -v sudo
+su - agent -c 'sudo -n true'
+test -x /opt/guest-init/guest-entry.sh
+if ldd /usr/bin/rsync 2>/dev/null | grep -q 'not found'; then
+  echo "rsync has unresolved shared libraries:" >&2
+  ldd /usr/bin/rsync >&2 || true
+  exit 1
+fi
+`
 }
 
 // ensureJammyDebs downloads Ubuntu jammy .debs and extracts them with dpkg-deb -x.

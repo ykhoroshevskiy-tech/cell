@@ -115,6 +115,8 @@ The host must have OpenCode installed (`CELL_HOST_AGENT_BIN` or `opencode` on PA
 
 After upgrading, rebuild rootfs once so guest health checks have `curl`: `sudo cell bootstrap --rebuild-rootfs`.
 
+The guest has `git` and passwordless `sudo` for user `agent`; `apt` is still not usable. Rebuild: `sudo cell bootstrap --rebuild-rootfs` (stamp does not change, so rebuild is required).
+
 Runtime:
 
 | Setting                  | Default           |
