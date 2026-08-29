@@ -125,6 +125,15 @@ func TestLoadAgentServeDefaults(t *testing.T) {
 	if cfg.HostAgentBin != "opencode" {
 		t.Fatalf("HostAgentBin = %q", cfg.HostAgentBin)
 	}
+	if cfg.ProjectDiskSizeMB != 3072 {
+		t.Fatalf("ProjectDiskSizeMB = %d, want 3072", cfg.ProjectDiskSizeMB)
+	}
+	if cfg.RootfsSizeMB != 4096 {
+		t.Fatalf("RootfsSizeMB = %d, want 4096", cfg.RootfsSizeMB)
+	}
+	if cfg.NodeVersion != "v24.20.0" {
+		t.Fatalf("NodeVersion = %q, want v24.20.0", cfg.NodeVersion)
+	}
 }
 
 func TestLoadAgentServeEnvOverrides(t *testing.T) {
@@ -144,6 +153,26 @@ func TestLoadAgentServeEnvOverrides(t *testing.T) {
 	}
 	if cfg.HostAgentBin != "/usr/local/bin/opencode" {
 		t.Fatalf("HostAgentBin = %q", cfg.HostAgentBin)
+	}
+}
+
+func TestLoadDiskAndNodeEnvOverrides(t *testing.T) {
+	t.Setenv("CELL_PROJECT_DISK_SIZE_MB", "2048")
+	t.Setenv("CELL_ROOTFS_SIZE_MB", "5120")
+	t.Setenv("CELL_NODE_VERSION", "v24.18.0")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+	if cfg.ProjectDiskSizeMB != 2048 {
+		t.Fatalf("ProjectDiskSizeMB = %d", cfg.ProjectDiskSizeMB)
+	}
+	if cfg.RootfsSizeMB != 5120 {
+		t.Fatalf("RootfsSizeMB = %d", cfg.RootfsSizeMB)
+	}
+	if cfg.NodeVersion != "v24.18.0" {
+		t.Fatalf("NodeVersion = %q", cfg.NodeVersion)
 	}
 }
 

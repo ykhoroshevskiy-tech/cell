@@ -22,7 +22,7 @@ func StageRepository(srcDir, destDir string, includeGit bool, excludePatterns []
 	if err := os.MkdirAll(destDir, 0755); err != nil {
 		return err
 	}
-	excludes := append([]string(nil), excludePatterns...)
+	excludes := append([]string{".filter"}, excludePatterns...)
 	if !includeGit {
 		excludes = append(excludes, ".git")
 	}

@@ -16,7 +16,7 @@ AI coding agents need shell access, package installs, and freedom to change file
 2. **Boot** — Firecracker microVM with a pinned kernel/rootfs
 3. **Serve** — `opencode serve` runs in the guest (binds `127.0.0.1`)
 4. **Attach** — host runs `opencode attach` over an SSH `-L` tunnel to the guest server
-5. **Sync** — `cell pull` or auto-pull while attached syncs guest workspace changes back to the host repo
+5. **Sync** — `cell pull` or auto-pull while attached syncs guest workspace changes back to the host repo (skips `.filter`)
 
 The OpenCode TUI runs on your host (clipboard works locally, not over SSH). Exiting the TUI leaves the VM running; use `cell stop` to shut it down. After a host reboot, `cell start --session <id>` boots the existing disk again.
 
@@ -35,7 +35,7 @@ Requires Linux with KVM. Runtime commands must run as root (`sudo cell`); `versi
 - Linux with KVM (`/dev/kvm`)
 - Root for runtime commands
 - Go 1.26+ to build
-- Host tools: `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`, [OpenCode](https://github.com/sst/opencode) (`opencode` on PATH)
+- Host tools: `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`, `debootstrap`, [OpenCode](https://github.com/sst/opencode) (`opencode` on PATH)
 
 ## Build & install
 
@@ -94,7 +94,7 @@ Artifact pins (defaults are fixed for reproducible bootstrap; override to change
 | `CELL_CI_PREFIX` | `firecracker-ci/20260708-f11c230ed107-0/` |
 | `CELL_KERNEL_VERSION` | `6.1.176` |
 | `CELL_FIRECRACKER_VERSION` | `v1.16.1` |
-| `CELL_SQUASHFS_VERSION` | `24.04` |
+| `CELL_SQUASHFS_VERSION` | unused (rootfs is debootstrap noble, not squashfs) |
 
 Path overrides (`CELL_KERNEL_PATH`, `CELL_FIRECRACKER_BIN`, `CELL_SQUASHFS_PATH`) still win when the file already exists.
 
@@ -113,15 +113,18 @@ In-guest agent (vendor-neutral; **defaults install OpenCode**):
 
 The host must have OpenCode installed (`CELL_HOST_AGENT_BIN` or `opencode` on PATH). `cell launch` / `cell attach` fail fast if it is missing; the VM keeps running.
 
-After upgrading, rebuild rootfs once so guest health checks have `curl`: `sudo cell bootstrap --rebuild-rootfs`.
+Guest rootfs is Ubuntu 24.04 via `debootstrap` (apt works) and is mounted read-only. `/usr/local` is bind-mounted from the project disk so the agent can install to `/usr/local/bin`. Node LTS (`CELL_NODE_VERSION`, default `v24.20.0`) is installed to `/usr/local`. Superpowers is installed at `/opt/opencode-plugins`. Rebuild after this change: `sudo cell bootstrap --rebuild-rootfs`. Host needs the `debootstrap` package.
 
-The guest has `git` and passwordless `sudo` for user `agent`; `apt` is still not usable. Rebuild: `sudo cell bootstrap --rebuild-rootfs` (stamp does not change, so rebuild is required).
+The guest has `git` and passwordless `sudo` for user `agent`. New sessions get a 3072 MiB project disk (`CELL_PROJECT_DISK_SIZE_MB`); rootfs size stays 4096 MiB (`CELL_ROOTFS_SIZE_MB`) and does not scale with the project disk. Existing session disks are not resized.
 
 Runtime:
 
 | Setting                  | Default           |
 |--------------------------|-------------------|
 | `CELL_DATA_DIR`          | `/var/lib/cell`   |
+| `CELL_PROJECT_DISK_SIZE_MB` | `3072`         |
+| `CELL_ROOTFS_SIZE_MB`    | `4096`            |
+| `CELL_NODE_VERSION`      | `v24.20.0`        |
 | `CELL_VCPU_COUNT`        | `4`               |
 | `CELL_MEM_SIZE_MIB`      | `8192`            |
 | `CELL_AUTO_PULL`         | `true`            |

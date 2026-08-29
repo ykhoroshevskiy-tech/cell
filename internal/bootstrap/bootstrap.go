@@ -1,10 +1,7 @@
 package bootstrap
 
 import (
-	"compress/gzip"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -39,19 +36,16 @@ func managedFirecrackerPath(cfg *config.CellConfig) string {
 	return filepath.Join(cfg.ImagesDir, "bin", "firecracker")
 }
 
-func managedSquashfsPath(cfg *config.CellConfig) string {
-	return filepath.Join(cfg.ImagesDir, "ubuntu-"+cfg.SquashfsVersion+".squashfs")
-}
-
 func rootfsSquashfsStampPath(rootfsPath string) string {
 	return rootfsPath + ".squashfs-version"
 }
 
 func squashfsBuildStamp(cfg *config.CellConfig) string {
-	if isCustomArtifactPath(cfg.SquashfsPath, managedSquashfsPath(cfg)) {
-		return "custom:" + filepath.Clean(cfg.SquashfsPath)
+	ver := cfg.NodeVersion
+	if ver == "" {
+		ver = "v24.20.0"
 	}
-	return cfg.SquashfsVersion
+	return "debootstrap:noble+apt+node:" + ver
 }
 
 func needsRootfsRebuild(rootfsPath, expectedStamp string, rebuildRequested bool) (bool, error) {
@@ -100,20 +94,18 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		FirecrackerVersion: cfg.FirecrackerVersion,
 		SquashfsVersion:    cfg.SquashfsVersion,
 	}
-	kernelArt, fcArt, sqArt, err := resolveArtifacts(arch, pins)
+	kernelArt, fcArt, _, err := resolveArtifacts(arch, pins)
 	if err != nil {
 		return err
 	}
 
 	kernelVersioned := filepath.Join(cfg.ImagesDir, "vmlinux-"+kernelArt.Version)
 	fcVersioned := filepath.Join(cfg.ImagesDir, "bin", "firecracker-"+fcArt.Version)
-	sqVersioned := filepath.Join(cfg.ImagesDir, "ubuntu-"+sqArt.Version+".squashfs")
 	fcTgz := filepath.Join(cfg.ImagesDir, "firecracker-"+fcArt.Version+".tgz")
 
 	if force {
 		_ = os.Remove(kernelVersioned)
 		_ = os.Remove(fcVersioned)
-		_ = os.Remove(sqVersioned)
 		_ = os.Remove(fcTgz)
 		_ = os.Remove(cfg.RootfsPath)
 		_ = os.Remove(rootfsSquashfsStampPath(cfg.RootfsPath))
@@ -124,8 +116,8 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		fmt.Printf("✓ kernel cached (%s)\n", humanSize(st.Size()))
 	} else {
 		if err := download(kernelVersioned, kernelArt); err != nil {
-			return fmt.Errorf("download %s failed (ci_prefix=%s kernel=%s firecracker=%s squashfs=%s): %w",
-				kernelArt.Name, pins.CIPrefix, pins.KernelVersion, pins.FirecrackerVersion, pins.SquashfsVersion, err)
+			return fmt.Errorf("download %s failed (ci_prefix=%s kernel=%s firecracker=%s): %w",
+				kernelArt.Name, pins.CIPrefix, pins.KernelVersion, pins.FirecrackerVersion, err)
 		}
 		if err := ValidateKernel(kernelVersioned); err != nil {
 			return err
@@ -133,24 +125,13 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		_ = ensureSymlink(cfg.KernelPath, kernelVersioned)
 	}
 
-	if shouldSkipManagedArtifactDownload(cfg.SquashfsPath, managedSquashfsPath(cfg), force) {
-		st, _ := os.Stat(cfg.SquashfsPath)
-		fmt.Printf("✓ squashfs cached (%s)\n", humanSize(st.Size()))
-	} else {
-		if err := download(sqVersioned, sqArt); err != nil {
-			return fmt.Errorf("download %s failed (ci_prefix=%s kernel=%s firecracker=%s squashfs=%s): %w",
-				sqArt.Name, pins.CIPrefix, pins.KernelVersion, pins.FirecrackerVersion, pins.SquashfsVersion, err)
-		}
-		cfg.SquashfsPath = sqVersioned
-	}
-
 	if shouldSkipManagedArtifactDownload(cfg.FirecrackerBin, managedFirecrackerPath(cfg), force) {
 		st, _ := os.Stat(cfg.FirecrackerBin)
 		fmt.Printf("✓ firecracker cached (%s)\n", humanSize(st.Size()))
 	} else {
 		if err := download(fcTgz, fcArt); err != nil {
-			return fmt.Errorf("download %s failed (ci_prefix=%s kernel=%s firecracker=%s squashfs=%s): %w",
-				fcArt.Name, pins.CIPrefix, pins.KernelVersion, pins.FirecrackerVersion, pins.SquashfsVersion, err)
+			return fmt.Errorf("download %s failed (ci_prefix=%s kernel=%s firecracker=%s): %w",
+				fcArt.Name, pins.CIPrefix, pins.KernelVersion, pins.FirecrackerVersion, err)
 		}
 		if st, err := os.Stat(fcVersioned); err == nil && st.Size() > 0 {
 			fmt.Printf("✓ firecracker binary cached (%s)\n", humanSize(st.Size()))
@@ -173,7 +154,7 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		return err
 	}
 	if needsRootfs {
-		fmt.Printf("Building rootfs from %s…\n", cfg.SquashfsPath)
+		fmt.Println("Building rootfs via debootstrap noble…")
 		if err := buildRootfs(cfg, rootfsSizeMB(cfg)); err != nil {
 			return err
 		}
@@ -215,15 +196,13 @@ func ensureAuthorizedKeys(cfg *config.CellConfig, dir string) error {
 }
 
 func rootfsSizeMB(cfg *config.CellConfig) int {
-	n := cfg.ProjectDiskSizeMB * 4
-	if n < 4096 {
-		n = 4096
+	if cfg.RootfsSizeMB > 0 {
+		return cfg.RootfsSizeMB
 	}
-	return n
+	return 4096
 }
 
 func buildRootfs(cfg *config.CellConfig, sizeMB int) error {
-	squashfsPath := cfg.SquashfsPath
 	rootfsPath := cfg.RootfsPath
 	imagesDir := cfg.ImagesDir
 	initScriptsDir := filepath.Join(cfg.DataDir, "init-scripts")
@@ -237,8 +216,18 @@ func buildRootfs(cfg *config.CellConfig, sizeMB int) error {
 	if err := os.MkdirAll(root, 0755); err != nil {
 		return err
 	}
-	if err := runCmd("unsquashfs", "-d", root, squashfsPath); err != nil {
-		return fmt.Errorf("unsquashfs: %w", err)
+	if _, err := exec.LookPath("debootstrap"); err != nil {
+		return fmt.Errorf("debootstrap not on PATH (install the debootstrap package): %w", err)
+	}
+	fmt.Println("debootstrap noble (minbase)…")
+	deboot := exec.Command("debootstrap", "--variant=minbase", "noble", root, "http://archive.ubuntu.com/ubuntu")
+	deboot.Stdout = os.Stdout
+	deboot.Stderr = os.Stderr
+	if err := deboot.Run(); err != nil {
+		return fmt.Errorf("debootstrap: %w", err)
+	}
+	if err := writeNobleSourcesList(root); err != nil {
+		return err
 	}
 
 	authKey := filepath.Join(initScriptsDir, "authorized_keys")
@@ -247,14 +236,12 @@ func buildRootfs(cfg *config.CellConfig, sizeMB int) error {
 		return fmt.Errorf("authorized_keys missing or empty at %s", authKey)
 	}
 
-	// DNS kept for any future in-chroot network need; current apt-free path
-	// fetches debs and optional agent tarball on the host.
 	if resolv, err := os.ReadFile("/etc/resolv.conf"); err == nil {
 		_ = os.MkdirAll(filepath.Join(root, "etc"), 0755)
 		_ = os.WriteFile(filepath.Join(root, "etc", "resolv.conf"), resolv, 0644)
 	}
 
-	for _, d := range []string{"project", "run/sshd", "tmp", "opt/guest-init"} {
+	for _, d := range []string{"project", "run/sshd", "tmp", "opt/guest-init", "opt/opencode-plugins"} {
 		if err := os.MkdirAll(filepath.Join(root, d), 0755); err != nil {
 			return err
 		}
@@ -307,10 +294,16 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 		return err
 	}
 
-	// Firecracker CI squashfs has no dpkg status — install missing pkgs via
-	// jammy .deb extract (host may be a different Ubuntu release).
-	if err := ensureJammyDebs(root, guestJammyDebs()); err != nil {
+	fmt.Println("chroot: apt-get install guest packages…")
+	if err := runChroot(root, "/bin/bash", "-c", guestAptInstallScript()); err != nil {
+		return fmt.Errorf("chroot apt-get: %w", err)
+	}
+	if err := installNodeHostSide(root, imagesDir, cfg.NodeVersion); err != nil {
 		return err
+	}
+	fmt.Println("chroot: npm install superpowers…")
+	if err := runChroot(root, "/bin/bash", "-c", guestSuperpowersInstallScript()); err != nil {
+		return fmt.Errorf("chroot npm superpowers: %w", err)
 	}
 	if err := writeAgentSudoers(root); err != nil {
 		return err
@@ -344,9 +337,6 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 	if err := runCmd("truncate", "-s", fmt.Sprintf("%dM", sizeMB), rootfsPath); err != nil {
 		return err
 	}
-	// mkfs.ext4 -d (matches Python launcher; proven fast). By default filter the
-	// harmless "__populate_fs: symlink increased in size" stderr flood; with -v
-	// stream raw mkfs output so the operator sees live progress.
 	mkfs := exec.Command("mkfs.ext4", "-F", "-d", root, rootfsPath)
 	if verbose.Enabled() {
 		mkfs.Stdout = os.Stdout
@@ -369,6 +359,7 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 	fmt.Println("rootfs built")
 	return nil
 }
+
 
 func agentDownloadTarget() (string, error) {
 	switch runtime.GOARCH {
@@ -480,25 +471,99 @@ func writeAgentStub(root, binName string) {
 	_ = os.WriteFile(stub, []byte(body), 0755)
 }
 
-// debPkg is a jammy package to extract into the guest rootfs without apt/dpkg DB.
-type debPkg struct {
-	Name   string
-	Binary string // guest path to check; empty = always extract (dependency)
+func nodeDownloadTarget() (string, error) {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "linux-x64", nil
+	case "arm64":
+		return "linux-arm64", nil
+	default:
+		return "", fmt.Errorf("unsupported arch %s", runtime.GOARCH)
+	}
 }
 
-// guestJammyDebs lists packages extracted into the guest rootfs without apt/dpkg DB.
-// jammy zsh.deb installs to /bin/zsh (not /usr/bin); rsync to /usr/bin/rsync.
-// rsync needs libpopt.so.0 (libpopt0) or guest pull fails at runtime.
-func guestJammyDebs() []debPkg {
-	return []debPkg{
-		{Name: "zsh-common", Binary: ""}, // supporting files for zsh
-		{Name: "zsh", Binary: "/bin/zsh"},
-		{Name: "libpopt0", Binary: "/usr/lib/x86_64-linux-gnu/libpopt.so.0"},
-		{Name: "rsync", Binary: "/usr/bin/rsync"},
-		{Name: "curl", Binary: "/usr/bin/curl"},
-		{Name: "sudo", Binary: "/usr/bin/sudo"},
-		{Name: "git", Binary: "/usr/bin/git"},
+func nodeTarballURL(version, target string) string {
+	return fmt.Sprintf("https://nodejs.org/dist/%s/node-%s-%s.tar.xz", version, version, target)
+}
+
+func installNodeHostSide(root, imagesDir, version string) error {
+	if version == "" {
+		version = "v24.20.0"
 	}
+	target, err := nodeDownloadTarget()
+	if err != nil {
+		return err
+	}
+	url := nodeTarballURL(version, target)
+	cache := filepath.Join(imagesDir, "node-"+version+"-"+target+".tar.xz")
+	if err := os.MkdirAll(imagesDir, 0755); err != nil {
+		return err
+	}
+	if st, err := os.Stat(cache); err != nil || st.Size() == 0 {
+		fmt.Printf("  fetching %s\n", url)
+		if err := curlDownloadRetry(cache, url, 3); err != nil {
+			return err
+		}
+	} else {
+		fmt.Printf("  using cached %s (%s)\n", cache, humanSize(st.Size()))
+	}
+	usrLocal := filepath.Join(root, "usr", "local")
+	if err := os.MkdirAll(usrLocal, 0755); err != nil {
+		return err
+	}
+	fmt.Println("  extracting node into /usr/local…")
+	if err := runCmd("tar", "-xJf", cache, "-C", usrLocal, "--strip-components=1"); err != nil {
+		_ = os.Remove(cache)
+		return fmt.Errorf("extract node: %w", err)
+	}
+	if !guestPathExists(root, "usr/local/bin/node") {
+		return fmt.Errorf("node missing at /usr/local/bin/node after extract")
+	}
+	fmt.Printf("  node %s installed\n", version)
+	return nil
+}
+
+const superpowersNPMSpec = "superpowers@git+https://github.com/obra/superpowers.git"
+
+func nobleSourcesList() string {
+	mirror := "http://archive.ubuntu.com/ubuntu"
+	if runtime.GOARCH == "arm64" {
+		mirror = "http://ports.ubuntu.com/ubuntu-ports"
+	}
+	return fmt.Sprintf(`deb %s noble main universe
+deb %s noble-updates main universe
+deb %s noble-security main universe
+`, mirror, mirror, mirror)
+}
+
+func writeNobleSourcesList(root string) error {
+	dir := filepath.Join(root, "etc", "apt")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dir, "sources.list"), []byte(nobleSourcesList()), 0644)
+}
+
+func guestAptInstallScript() string {
+	return `set -eux
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y --no-install-recommends \
+  openssh-server tmux zsh rsync curl git sudo ca-certificates
+ssh-keygen -A
+`
+}
+
+func guestSuperpowersInstallScript() string {
+	return `set -eux
+export PATH=/usr/local/bin:/usr/bin:/bin
+npm install --prefix /opt/opencode-plugins ` + superpowersNPMSpec + `
+test -d /opt/opencode-plugins/node_modules/superpowers
+`
+}
+
+func guestAptPackages() []string {
+	return []string{"openssh-server", "tmux", "zsh", "rsync", "curl", "git", "sudo", "ca-certificates"}
 }
 
 func agentSudoersBody() string {
@@ -526,7 +591,10 @@ command -v sshd
 command -v zsh
 command -v git
 command -v sudo
+command -v node
+command -v npm
 su - agent -c 'sudo -n true'
+test -d /opt/opencode-plugins/node_modules/superpowers
 test -x /opt/guest-init/guest-entry.sh
 if ldd /usr/bin/rsync 2>/dev/null | grep -q 'not found'; then
   echo "rsync has unresolved shared libraries:" >&2
@@ -536,175 +604,9 @@ fi
 `
 }
 
-// ensureJammyDebs downloads Ubuntu jammy .debs and extracts them with dpkg-deb -x.
-// Host apt-get download is NOT used — host may be a newer release (ABI mismatch).
-func ensureJammyDebs(root string, pkgs []debPkg) error {
-	need := false
-	for _, p := range pkgs {
-		if p.Binary == "" {
-			// dependency-only package: extract when any binary package is missing
-			continue
-		}
-		if !guestPathExists(root, p.Binary) {
-			need = true
-			break
-		}
-	}
-	if !need {
-		// still extract empty-Binary deps if a later package will be extracted
-		return nil
-	}
-
-	tmp, err := os.MkdirTemp("", "cell-deb-*")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmp)
-
-	index, err := fetchJammyPackageIndex()
-	if err != nil {
-		return err
-	}
-
-	for _, p := range pkgs {
-		if p.Binary != "" && guestPathExists(root, p.Binary) {
-			continue
-		}
-		// empty Binary (e.g. zsh-common): extract when we're in the need path
-		file, ok := index[p.Name]
-		if !ok {
-			return fmt.Errorf("package %s not found in jammy Packages index", p.Name)
-		}
-		url := "http://archive.ubuntu.com/ubuntu/" + file
-		debPath := filepath.Join(tmp, filepath.Base(file))
-		fmt.Printf("installing %s via jammy deb extract…\n", p.Name)
-		if err := downloadFile(debPath, url); err != nil {
-			return fmt.Errorf("download %s: %w", p.Name, err)
-		}
-		if err := runCmd("dpkg-deb", "-x", debPath, root); err != nil {
-			return fmt.Errorf("dpkg-deb -x %s: %w", p.Name, err)
-		}
-		// dpkg-deb -x replaces /bin→usr/bin symlink with a real dir; restore usrmerge
-		if err := repairUsrmerge(root); err != nil {
-			return fmt.Errorf("usrmerge repair after %s: %w", p.Name, err)
-		}
-		if p.Binary != "" && !guestPathExists(root, p.Binary) {
-			return fmt.Errorf("%s still missing at %s after deb extract", p.Name, p.Binary)
-		}
-	}
-	return nil
-}
-
 func guestPathExists(root, rel string) bool {
 	_, err := os.Stat(filepath.Join(root, rel))
 	return err == nil
-}
-
-// repairUsrmerge restores /bin,/sbin,/lib,/lib64 as symlinks into usr/
-// after dpkg-deb -x materializes them as real directories (breaks chroot /bin/bash).
-func repairUsrmerge(root string) error {
-	for _, d := range []string{"bin", "sbin", "lib", "lib64"} {
-		p := filepath.Join(root, d)
-		fi, err := os.Lstat(p)
-		if err != nil {
-			if os.IsNotExist(err) {
-				continue
-			}
-			return err
-		}
-		if fi.Mode()&os.ModeSymlink != 0 {
-			continue
-		}
-		if !fi.IsDir() {
-			continue
-		}
-		usr := filepath.Join(root, "usr", d)
-		if err := os.MkdirAll(usr, 0755); err != nil {
-			return err
-		}
-		entries, err := os.ReadDir(p)
-		if err != nil {
-			return err
-		}
-		for _, e := range entries {
-			src := filepath.Join(p, e.Name())
-			dst := filepath.Join(usr, e.Name())
-			if _, err := os.Lstat(dst); err == nil {
-				_ = os.RemoveAll(dst)
-			}
-			if err := os.Rename(src, dst); err != nil {
-				return fmt.Errorf("merge %s → %s: %w", src, dst, err)
-			}
-		}
-		if err := os.RemoveAll(p); err != nil {
-			return err
-		}
-		if err := os.Symlink("usr/"+d, p); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func fetchJammyPackageIndex() (map[string]string, error) {
-	url := "http://archive.ubuntu.com/ubuntu/dists/jammy/main/binary-amd64/Packages.gz"
-	resp, err := http.Get(url)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("HTTP %d fetching jammy Packages.gz", resp.StatusCode)
-	}
-	gz, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-	defer gz.Close()
-	data, err := io.ReadAll(gz)
-	if err != nil {
-		return nil, err
-	}
-	out := map[string]string{}
-	var pkg, file string
-	flush := func() {
-		if pkg != "" && file != "" {
-			if _, exists := out[pkg]; !exists {
-				out[pkg] = file
-			}
-		}
-		pkg, file = "", ""
-	}
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.HasPrefix(line, "Package: ") {
-			flush()
-			pkg = strings.TrimPrefix(line, "Package: ")
-		} else if strings.HasPrefix(line, "Filename: ") {
-			file = strings.TrimPrefix(line, "Filename: ")
-		} else if line == "" {
-			flush()
-		}
-	}
-	flush()
-	return out, nil
-}
-
-func downloadFile(dst, url string) error {
-	resp, err := http.Get(url)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("HTTP %d", resp.StatusCode)
-	}
-	f, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = io.Copy(f, resp.Body)
-	return err
 }
 
 func runChroot(root string, args ...string) error {
@@ -715,21 +617,6 @@ func runChroot(root string, args ...string) error {
 		return err
 	}
 	return nil
-}
-
-func copyFile(src, dst string) error {
-	in, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer in.Close()
-	out, err := os.Create(dst)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-	_, err = io.Copy(out, in)
-	return err
 }
 
 func runCmd(name string, args ...string) error {

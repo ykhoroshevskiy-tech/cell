@@ -41,11 +41,11 @@ func TestNeedsRootfsRebuildWhenSquashfsStampMismatches(t *testing.T) {
 	if err := os.WriteFile(rootfsPath, []byte("rootfs"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(rootfsSquashfsStampPath(rootfsPath), []byte("22.04"), 0644); err != nil {
+	if err := os.WriteFile(rootfsSquashfsStampPath(rootfsPath), []byte("24.04"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
-	needs, err := needsRootfsRebuild(rootfsPath, "24.04", false)
+	needs, err := needsRootfsRebuild(rootfsPath, "debootstrap:noble+apt+node:v24.20.0", false)
 	if err != nil {
 		t.Fatalf("needsRootfsRebuild() error = %v", err)
 	}
@@ -54,14 +54,12 @@ func TestNeedsRootfsRebuildWhenSquashfsStampMismatches(t *testing.T) {
 	}
 }
 
-func TestSquashfsBuildStampUsesCustomOverridePath(t *testing.T) {
+func TestSquashfsBuildStampUsesNodePin(t *testing.T) {
 	cfg := &config.CellConfig{
-		ImagesDir:       "/var/lib/cell/images",
-		SquashfsVersion: "24.04",
-		SquashfsPath:    "/opt/images/custom-ubuntu.squashfs",
+		NodeVersion: "v24.18.0",
 	}
 
-	if got := squashfsBuildStamp(cfg); got != "custom:/opt/images/custom-ubuntu.squashfs" {
+	if got := squashfsBuildStamp(cfg); got != "debootstrap:noble+apt+node:v24.18.0" {
 		t.Fatalf("squashfsBuildStamp() = %q", got)
 	}
 }
