@@ -41,11 +41,19 @@ func rootfsSquashfsStampPath(rootfsPath string) string {
 }
 
 func squashfsBuildStamp(cfg *config.CellConfig) string {
-	ver := cfg.NodeVersion
-	if ver == "" {
-		ver = "v24.20.0"
+	node := cfg.NodeVersion
+	if node == "" {
+		node = "v24.20.0"
 	}
-	return "debootstrap:noble+apt+node:" + ver
+	uv := cfg.UvVersion
+	if uv == "" {
+		uv = "0.12.7"
+	}
+	py := cfg.PythonVersion
+	if py == "" {
+		py = "3.13"
+	}
+	return "debootstrap:noble+apt+node:" + node + "+uv:" + uv + "+py:" + py
 }
 
 func needsRootfsRebuild(rootfsPath, expectedStamp string, rebuildRequested bool) (bool, error) {
@@ -301,6 +309,13 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 	if err := installNodeHostSide(root, imagesDir, cfg.NodeVersion); err != nil {
 		return err
 	}
+	if err := installUvHostSide(root, imagesDir, cfg.UvVersion); err != nil {
+		return err
+	}
+	fmt.Println("chroot: uv python install…")
+	if err := runChroot(root, "/bin/bash", "-c", guestPythonInstallScript(cfg.PythonVersion)); err != nil {
+		return fmt.Errorf("chroot uv python: %w", err)
+	}
 	fmt.Println("chroot: npm install superpowers…")
 	if err := runChroot(root, "/bin/bash", "-c", guestSuperpowersInstallScript()); err != nil {
 		return fmt.Errorf("chroot npm superpowers: %w", err)
@@ -523,6 +538,90 @@ func installNodeHostSide(root, imagesDir, version string) error {
 	return nil
 }
 
+func uvDownloadTarget() (string, error) {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "x86_64", nil
+	case "arm64":
+		return "aarch64", nil
+	default:
+		return "", fmt.Errorf("unsupported arch %s", runtime.GOARCH)
+	}
+}
+
+func uvTarballURL(version, arch string) string {
+	return fmt.Sprintf("https://github.com/astral-sh/uv/releases/download/%s/uv-%s-unknown-linux-gnu.tar.gz", version, arch)
+}
+
+func installUvHostSide(root, imagesDir, version string) error {
+	if version == "" {
+		version = "0.12.7"
+	}
+	arch, err := uvDownloadTarget()
+	if err != nil {
+		return err
+	}
+	url := uvTarballURL(version, arch)
+	cache := filepath.Join(imagesDir, "uv-"+version+"-"+arch+".tar.gz")
+	if err := os.MkdirAll(imagesDir, 0755); err != nil {
+		return err
+	}
+	if st, err := os.Stat(cache); err != nil || st.Size() == 0 {
+		fmt.Printf("  fetching %s\n", url)
+		if err := curlDownloadRetry(cache, url, 3); err != nil {
+			return err
+		}
+	} else {
+		fmt.Printf("  using cached %s (%s)\n", cache, humanSize(st.Size()))
+	}
+
+	tmp, err := os.MkdirTemp("", "cell-uv-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+	if err := runCmd("tar", "-xzf", cache, "-C", tmp); err != nil {
+		_ = os.Remove(cache)
+		return fmt.Errorf("extract uv: %w", err)
+	}
+	var src string
+	_ = filepath.Walk(tmp, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return nil
+		}
+		if filepath.Base(path) == "uv" && src == "" {
+			src = path
+		}
+		return nil
+	})
+	if src == "" {
+		return fmt.Errorf("uv binary missing in tarball")
+	}
+	binDir := filepath.Join(root, "usr", "local", "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		return err
+	}
+	dst := filepath.Join(binDir, "uv")
+	if err := runCmd("install", "-m", "755", src, dst); err != nil {
+		return fmt.Errorf("install uv binary: %w", err)
+	}
+	fmt.Printf("  uv %s installed\n", version)
+	return nil
+}
+
+func guestPythonInstallScript(pythonVersion string) string {
+	if pythonVersion == "" {
+		pythonVersion = "3.13"
+	}
+	return `set -eux
+export PATH=/usr/local/bin:/usr/bin:/bin
+export UV_PYTHON_INSTALL_DIR=/usr/local/share/uv/python
+export UV_PYTHON_BIN_DIR=/usr/local/bin
+uv python install --default ` + pythonVersion + `
+command -v python3
+`
+}
+
 const superpowersNPMSpec = "superpowers@git+https://github.com/obra/superpowers.git"
 
 func nobleSourcesList() string {
@@ -593,6 +692,8 @@ command -v git
 command -v sudo
 command -v node
 command -v npm
+command -v uv
+command -v python3
 su - agent -c 'sudo -n true'
 test -d /opt/opencode-plugins/node_modules/superpowers
 test -x /opt/guest-init/guest-entry.sh

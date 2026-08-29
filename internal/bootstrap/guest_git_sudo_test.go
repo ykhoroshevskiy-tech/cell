@@ -56,6 +56,8 @@ func TestGuestCustomizeScriptChecksGitSudoNode(t *testing.T) {
 		"command -v sudo",
 		"command -v node",
 		"command -v npm",
+		"command -v uv",
+		"command -v python3",
 		"su - agent -c 'sudo -n true'",
 		"/opt/opencode-plugins/node_modules/superpowers",
 	} {
@@ -82,9 +84,30 @@ func TestRootfsSizeMBIndependentOfProjectDisk(t *testing.T) {
 
 func TestSquashfsBuildStampIncludesNodeVersion(t *testing.T) {
 	cfg := &config.CellConfig{NodeVersion: "v24.20.0"}
-	want := "debootstrap:noble+apt+node:v24.20.0"
+	want := "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13"
 	if got := squashfsBuildStamp(cfg); got != want {
 		t.Fatalf("squashfsBuildStamp() = %q, want %q", got, want)
+	}
+}
+
+func TestUvTarballURL(t *testing.T) {
+	got := uvTarballURL("0.12.7", "x86_64")
+	want := "https://github.com/astral-sh/uv/releases/download/0.12.7/uv-x86_64-unknown-linux-gnu.tar.gz"
+	if got != want {
+		t.Fatalf("uvTarballURL = %q, want %q", got, want)
+	}
+}
+
+func TestGuestPythonInstallScript(t *testing.T) {
+	script := guestPythonInstallScript("3.13")
+	for _, want := range []string{
+		"UV_PYTHON_INSTALL_DIR=/usr/local/share/uv/python",
+		"UV_PYTHON_BIN_DIR=/usr/local/bin",
+		"uv python install --default 3.13",
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("guestPythonInstallScript() missing %q", want)
+		}
 	}
 }
 

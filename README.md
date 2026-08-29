@@ -113,7 +113,7 @@ In-guest agent (vendor-neutral; **defaults install OpenCode**):
 
 The host must have OpenCode installed (`CELL_HOST_AGENT_BIN` or `opencode` on PATH). `cell launch` / `cell attach` fail fast if it is missing; the VM keeps running.
 
-Guest rootfs is Ubuntu 24.04 via `debootstrap` (apt works) and is mounted read-only. `/usr/local` is bind-mounted from the project disk so the agent can install to `/usr/local/bin`. Node LTS (`CELL_NODE_VERSION`, default `v24.20.0`) is installed to `/usr/local`. Superpowers is installed at `/opt/opencode-plugins`. Rebuild after this change: `sudo cell bootstrap --rebuild-rootfs`. Host needs the `debootstrap` package.
+Guest rootfs is Ubuntu 24.04 via `debootstrap` (apt works) and is mounted read-only. `/usr/local` is bind-mounted from the project disk so the agent can install to `/usr/local/bin`. Node LTS (`CELL_NODE_VERSION`, default `v24.20.0`), uv (`CELL_UV_VERSION`, default `0.12.7`), and CPython (`CELL_PYTHON_VERSION`, default `3.13`) are installed to `/usr/local`. Superpowers is installed at `/opt/opencode-plugins`. Rebuild after this change: `sudo cell bootstrap --rebuild-rootfs`. Host needs the `debootstrap` package.
 
 The guest has `git` and passwordless `sudo` for user `agent`. New sessions get a 3072 MiB project disk (`CELL_PROJECT_DISK_SIZE_MB`); rootfs size stays 4096 MiB (`CELL_ROOTFS_SIZE_MB`) and does not scale with the project disk. Existing session disks are not resized.
 
@@ -125,6 +125,8 @@ Runtime:
 | `CELL_PROJECT_DISK_SIZE_MB` | `3072`         |
 | `CELL_ROOTFS_SIZE_MB`    | `4096`            |
 | `CELL_NODE_VERSION`      | `v24.20.0`        |
+| `CELL_UV_VERSION`        | `0.12.7`          |
+| `CELL_PYTHON_VERSION`    | `3.13`            |
 | `CELL_VCPU_COUNT`        | `4`               |
 | `CELL_MEM_SIZE_MIB`      | `8192`            |
 | `CELL_AUTO_PULL`         | `true`            |
