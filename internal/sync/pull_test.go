@@ -9,6 +9,19 @@ import (
 	"github.com/ykhoroshevskiy-tech/cell/internal/sync"
 )
 
+func TestPullRsyncExcludesFilter(t *testing.T) {
+	got := sync.PullRsyncExcludes()
+	want := []string{"--exclude=.filter-staged", "--exclude=.filter"}
+	if len(got) != len(want) {
+		t.Fatalf("PullRsyncExcludes() = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("PullRsyncExcludes() = %q, want %q", got, want)
+		}
+	}
+}
+
 func TestValidateDestUnsafe(t *testing.T) {
 	for _, dest := range []string{"/", "/usr", "/bin", "/etc", "/var", "/sbin"} {
 		if err := sync.ValidateDest(dest); err == nil {

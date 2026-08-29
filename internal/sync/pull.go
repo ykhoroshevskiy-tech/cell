@@ -18,6 +18,10 @@ var unsafeDests = map[string]bool{
 	"/": true, "/usr": true, "/bin": true, "/etc": true, "/var": true, "/sbin": true,
 }
 
+func PullRsyncExcludes() []string {
+	return []string{"--exclude=.filter-staged", "--exclude=.filter"}
+}
+
 func ValidateDest(dest string) error {
 	clean := strings.TrimRight(dest, "/")
 	if clean == "" {
@@ -74,7 +78,7 @@ func PullWorkspace(session *models.SessionRecord, cfg *config.CellConfig, opts m
 	if opts.Delete {
 		args = append(args, "--delete")
 	}
-	args = append(args, "--exclude=.filter-staged")
+	args = append(args, PullRsyncExcludes()...)
 
 	rsh := ssh.RemoteShell(session.SSHKeyPath)
 	guest := fmt.Sprintf("%s@%s:%s/", cfg.SSHUser, session.NetworkConfig.GuestIP, cfg.GuestRepoDir)

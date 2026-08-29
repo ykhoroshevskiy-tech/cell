@@ -21,6 +21,7 @@ type CellConfig struct {
 	VCPUCount           int           `mapstructure:"vcpu_count"`
 	MemSizeMiB          int           `mapstructure:"mem_size_mib"`
 	ProjectDiskSizeMB   int           `mapstructure:"project_disk_size_mb"`
+	RootfsSizeMB        int           `mapstructure:"rootfs_size_mb"`
 	BootTimeoutSec      time.Duration `mapstructure:"boot_timeout_sec"`
 	SSHReadyTimeoutSec  time.Duration `mapstructure:"ssh_ready_timeout_sec"`
 	GuestProjectMount   string        `mapstructure:"guest_project_mount"`
@@ -39,6 +40,7 @@ type CellConfig struct {
 	KernelVersion       string        `mapstructure:"kernel_version"`
 	FirecrackerVersion  string        `mapstructure:"firecracker_version"`
 	SquashfsVersion     string        `mapstructure:"squashfs_version"`
+	NodeVersion         string        `mapstructure:"node_version"`
 	// Agent install/attach (vendor-neutral; defaults target OpenCode).
 	AgentURL string `mapstructure:"agent_url"` // empty = skip install; may contain {target}
 	AgentBin string `mapstructure:"agent_bin"` // binary name inside tarball and on PATH
@@ -66,7 +68,8 @@ func Default() *CellConfig {
 		SquashfsPath:        managedSquashfsPath(imagesDir, "24.04"),
 		VCPUCount:           4,
 		MemSizeMiB:          8192,
-		ProjectDiskSizeMB:   1024,
+		ProjectDiskSizeMB:   3072,
+		RootfsSizeMB:        4096,
 		BootTimeoutSec:      120 * time.Second,
 		SSHReadyTimeoutSec:  90 * time.Second,
 		GuestProjectMount:   "/project",
@@ -84,6 +87,7 @@ func Default() *CellConfig {
 		KernelVersion:       "6.1.176",
 		FirecrackerVersion:  "v1.16.1",
 		SquashfsVersion:     "24.04",
+		NodeVersion:         "v24.20.0",
 		AgentURL:            "https://github.com/anomalyco/opencode/releases/latest/download/opencode-{target}.tar.gz",
 		AgentBin:            "opencode",
 		AgentCmd:            "opencode serve --hostname 127.0.0.1 --port 4096",
@@ -116,12 +120,12 @@ func Load() (*CellConfig, error) {
 	keys := []string{
 		"runtime_root", "data_dir", "images_dir", "session_data_dir",
 		"firecracker_bin", "kernel_path", "rootfs_path", "squashfs_path",
-		"vcpu_count", "mem_size_mib", "project_disk_size_mb",
+		"vcpu_count", "mem_size_mib", "project_disk_size_mb", "rootfs_size_mb",
 		"boot_timeout_sec", "ssh_ready_timeout_sec",
 		"guest_project_mount", "guest_repo_dir", "guest_attach_script", "guest_project_device",
 		"ssh_user", "tmux_session_name", "include_git", "exclude_patterns",
 		"auto_pull", "auto_pull_interval_sec", "rebuild_rootfs", "ssh_public_key",
-		"ci_prefix", "kernel_version", "firecracker_version", "squashfs_version",
+		"ci_prefix", "kernel_version", "firecracker_version", "squashfs_version", "node_version",
 		"agent_url", "agent_bin", "agent_cmd",
 		"agent_serve_port", "host_agent_bin",
 	}
@@ -135,6 +139,7 @@ func Load() (*CellConfig, error) {
 	v.SetDefault("vcpu_count", def.VCPUCount)
 	v.SetDefault("mem_size_mib", def.MemSizeMiB)
 	v.SetDefault("project_disk_size_mb", def.ProjectDiskSizeMB)
+	v.SetDefault("rootfs_size_mb", def.RootfsSizeMB)
 	v.SetDefault("boot_timeout_sec", def.BootTimeoutSec)
 	v.SetDefault("ssh_ready_timeout_sec", def.SSHReadyTimeoutSec)
 	v.SetDefault("guest_project_mount", def.GuestProjectMount)
@@ -153,6 +158,7 @@ func Load() (*CellConfig, error) {
 	v.SetDefault("kernel_version", def.KernelVersion)
 	v.SetDefault("firecracker_version", def.FirecrackerVersion)
 	v.SetDefault("squashfs_version", def.SquashfsVersion)
+	v.SetDefault("node_version", def.NodeVersion)
 	v.SetDefault("agent_url", def.AgentURL)
 	v.SetDefault("agent_bin", def.AgentBin)
 	v.SetDefault("agent_cmd", def.AgentCmd)
@@ -198,6 +204,12 @@ func Load() (*CellConfig, error) {
 	}
 	if cfg.SquashfsPath == "" {
 		cfg.SquashfsPath = managedSquashfsPath(cfg.ImagesDir, cfg.SquashfsVersion)
+	}
+	if cfg.NodeVersion == "" {
+		cfg.NodeVersion = def.NodeVersion
+	}
+	if cfg.RootfsSizeMB == 0 {
+		cfg.RootfsSizeMB = def.RootfsSizeMB
 	}
 	if cfg.GuestAttachScript == "" {
 		cfg.GuestAttachScript = def.GuestAttachScript

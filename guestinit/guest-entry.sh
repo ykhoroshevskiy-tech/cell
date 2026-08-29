@@ -82,10 +82,33 @@ EOF
   fi
 }
 
+ensure_filter_gitignore() {
+  GI="${REPO_DIR}/.gitignore"
+  if [ -f "${GI}" ] && grep -qxE '\.filter(/)?' "${GI}"; then
+    return 0
+  fi
+  if [ ! -f "${GI}" ]; then
+    printf '%s\n' '.filter/' > "${GI}"
+  else
+    printf '\n%s\n' '.filter/' >> "${GI}"
+  fi
+  chown "${AGENT_USER}:${AGENT_USER}" "${GI}" 2>/dev/null || true
+}
+
 setup_agent_home() {
   AGENT_HOME="/home/${AGENT_USER}"
   RW="${MOUNT}/.filter/agent-home"
-  mkdir -p "${RW}/.cache" "${RW}/.config" "${RW}/.local/share"
+  mkdir -p "${RW}/.cache" "${RW}/.config/opencode" "${RW}/.local/share"
+  CFG="${RW}/.config/opencode/opencode.json"
+  if [ ! -f "${CFG}" ]; then
+    cat > "${CFG}" <<'EOF'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": "allow",
+  "plugin": ["/opt/opencode-plugins/node_modules/superpowers"]
+}
+EOF
+  fi
   for dot in .zshrc .profile .bashrc; do
     if [ ! -e "${RW}/${dot}" ] && [ -e "${AGENT_HOME}/${dot}" ]; then
       cp -a "${AGENT_HOME}/${dot}" "${RW}/"
@@ -103,6 +126,23 @@ EOF
   fi
   chown -R "${AGENT_USER}:${AGENT_USER}" "${RW}"
   log "agent home rw at ${AGENT_HOME} (${RW})"
+}
+
+# Rootfs is Firecracker RO; /usr/local lives there. Seed a project-disk copy and bind it
+# so the agent can install to /usr/local/bin (npm -g, etc.). Ceiling: copy is ~Node size;
+# upgrade: overlayfs if re-copy after rootfs Node bumps becomes painful.
+setup_usr_local_rw() {
+  RW="${MOUNT}/.filter/usr-local"
+  mkdir -p "${RW}"
+  if [ ! -f "${RW}/.seeded" ]; then
+    cp -a /usr/local/. "${RW}/"
+    touch "${RW}/.seeded"
+  fi
+  if ! mountpoint -q /usr/local; then
+    mount --bind "${RW}" /usr/local
+  fi
+  chown -R "${AGENT_USER}:${AGENT_USER}" "${RW}"
+  log "usr/local rw at ${RW}"
 }
 
 setup_ssh() {
@@ -129,7 +169,6 @@ start_tmux_session() {
   fi
   cat > /run/opencode.env <<EOF
 OPENCODE_SERVER_PASSWORD=$(cat "${PASS_FILE}")
-OPENCODE_PERMISSION={"*":"allow"}
 EOF
   chmod 600 /run/opencode.env
   chown "${AGENT_USER}:${AGENT_USER}" /run/opencode.env
@@ -170,10 +209,12 @@ EOF
 }
 
 mount_project
+ensure_filter_gitignore
 chown_repo
 setup_runtime_dirs
 setup_dns
 setup_agent_home
+setup_usr_local_rw
 setup_ssh
 if start_tmux_session; then
   log "runtime ready"
