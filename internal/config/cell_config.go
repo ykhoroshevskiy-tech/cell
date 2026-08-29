@@ -41,6 +41,8 @@ type CellConfig struct {
 	FirecrackerVersion  string        `mapstructure:"firecracker_version"`
 	SquashfsVersion     string        `mapstructure:"squashfs_version"`
 	NodeVersion         string        `mapstructure:"node_version"`
+	UvVersion           string        `mapstructure:"uv_version"`
+	PythonVersion       string        `mapstructure:"python_version"`
 	// Agent install/attach (vendor-neutral; defaults target OpenCode).
 	AgentURL string `mapstructure:"agent_url"` // empty = skip install; may contain {target}
 	AgentBin string `mapstructure:"agent_bin"` // binary name inside tarball and on PATH
@@ -88,6 +90,8 @@ func Default() *CellConfig {
 		FirecrackerVersion:  "v1.16.1",
 		SquashfsVersion:     "24.04",
 		NodeVersion:         "v24.20.0",
+		UvVersion:           "0.12.7",
+		PythonVersion:       "3.13",
 		AgentURL:            "https://github.com/anomalyco/opencode/releases/latest/download/opencode-{target}.tar.gz",
 		AgentBin:            "opencode",
 		AgentCmd:            "opencode serve --hostname 127.0.0.1 --port 4096",
@@ -126,6 +130,7 @@ func Load() (*CellConfig, error) {
 		"ssh_user", "tmux_session_name", "include_git", "exclude_patterns",
 		"auto_pull", "auto_pull_interval_sec", "rebuild_rootfs", "ssh_public_key",
 		"ci_prefix", "kernel_version", "firecracker_version", "squashfs_version", "node_version",
+		"uv_version", "python_version",
 		"agent_url", "agent_bin", "agent_cmd",
 		"agent_serve_port", "host_agent_bin",
 	}
@@ -159,6 +164,8 @@ func Load() (*CellConfig, error) {
 	v.SetDefault("firecracker_version", def.FirecrackerVersion)
 	v.SetDefault("squashfs_version", def.SquashfsVersion)
 	v.SetDefault("node_version", def.NodeVersion)
+	v.SetDefault("uv_version", def.UvVersion)
+	v.SetDefault("python_version", def.PythonVersion)
 	v.SetDefault("agent_url", def.AgentURL)
 	v.SetDefault("agent_bin", def.AgentBin)
 	v.SetDefault("agent_cmd", def.AgentCmd)
@@ -207,6 +214,12 @@ func Load() (*CellConfig, error) {
 	}
 	if cfg.NodeVersion == "" {
 		cfg.NodeVersion = def.NodeVersion
+	}
+	if cfg.UvVersion == "" {
+		cfg.UvVersion = def.UvVersion
+	}
+	if cfg.PythonVersion == "" {
+		cfg.PythonVersion = def.PythonVersion
 	}
 	if cfg.RootfsSizeMB == 0 {
 		cfg.RootfsSizeMB = def.RootfsSizeMB

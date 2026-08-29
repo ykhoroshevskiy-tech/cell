@@ -134,6 +134,12 @@ func TestLoadAgentServeDefaults(t *testing.T) {
 	if cfg.NodeVersion != "v24.20.0" {
 		t.Fatalf("NodeVersion = %q, want v24.20.0", cfg.NodeVersion)
 	}
+	if cfg.UvVersion != "0.12.7" {
+		t.Fatalf("UvVersion = %q, want 0.12.7", cfg.UvVersion)
+	}
+	if cfg.PythonVersion != "3.13" {
+		t.Fatalf("PythonVersion = %q, want 3.13", cfg.PythonVersion)
+	}
 }
 
 func TestLoadAgentServeEnvOverrides(t *testing.T) {
@@ -160,6 +166,8 @@ func TestLoadDiskAndNodeEnvOverrides(t *testing.T) {
 	t.Setenv("CELL_PROJECT_DISK_SIZE_MB", "2048")
 	t.Setenv("CELL_ROOTFS_SIZE_MB", "5120")
 	t.Setenv("CELL_NODE_VERSION", "v24.18.0")
+	t.Setenv("CELL_UV_VERSION", "0.12.0")
+	t.Setenv("CELL_PYTHON_VERSION", "3.12")
 
 	cfg, err := Load()
 	if err != nil {
@@ -173,6 +181,12 @@ func TestLoadDiskAndNodeEnvOverrides(t *testing.T) {
 	}
 	if cfg.NodeVersion != "v24.18.0" {
 		t.Fatalf("NodeVersion = %q", cfg.NodeVersion)
+	}
+	if cfg.UvVersion != "0.12.0" {
+		t.Fatalf("UvVersion = %q", cfg.UvVersion)
+	}
+	if cfg.PythonVersion != "3.12" {
+		t.Fatalf("PythonVersion = %q", cfg.PythonVersion)
 	}
 }
 
