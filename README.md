@@ -16,7 +16,7 @@ AI coding agents need shell access, package installs, and freedom to change file
 2. **Boot** — Firecracker microVM with a pinned kernel/rootfs
 3. **Serve** — `opencode serve` runs in the guest (binds `127.0.0.1`)
 4. **Attach** — host runs `opencode attach` over an SSH `-L` tunnel to the guest server
-5. **Sync** — `cell pull` or auto-pull while attached syncs guest workspace changes back to the host repo (skips `.filter`)
+5. **Sync** — `cell pull` or auto-pull while attached syncs guest workspace changes back to the host repo (skips `.filter`). `--repo` is stored as an absolute path; pull dest must be absolute.
 
 The OpenCode TUI runs on your host (clipboard works locally, not over SSH). Exiting the TUI leaves the VM running; use `cell stop` to shut it down. After a host reboot, `cell start --session <id>` boots the existing disk again.
 

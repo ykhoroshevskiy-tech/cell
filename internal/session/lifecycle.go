@@ -93,13 +93,18 @@ func (sm *SessionManager) prepareSession(repoSource string) (*models.SessionReco
 		return nil, fmt.Errorf("firecracker missing at %s: run cell bootstrap", sm.cfg.FirecrackerBin)
 	}
 
+	resolved, err := ResolveRepoSource(repoSource)
+	if err != nil {
+		return nil, err
+	}
+
 	id, err := newSessionID()
 	if err != nil {
 		return nil, err
 	}
 	session := &models.SessionRecord{
 		SessionID:  id,
-		RepoSource: repoSource,
+		RepoSource: resolved,
 		CreatedAt:  time.Now(),
 		State:      models.StateCreated,
 	}

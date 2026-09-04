@@ -22,6 +22,14 @@ func TestPullRsyncExcludesFilter(t *testing.T) {
 	}
 }
 
+func TestValidateDestRelative(t *testing.T) {
+	for _, dest := range []string{".", "./", "foo", "rel/path"} {
+		if err := sync.ValidateDest(dest); err == nil {
+			t.Fatalf("expected error for %q", dest)
+		}
+	}
+}
+
 func TestValidateDestUnsafe(t *testing.T) {
 	for _, dest := range []string{"/", "/usr", "/bin", "/etc", "/var", "/sbin"} {
 		if err := sync.ValidateDest(dest); err == nil {

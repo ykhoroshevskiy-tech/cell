@@ -30,6 +30,9 @@ func ValidateDest(dest string) error {
 	if unsafeDests[clean] {
 		return fmt.Errorf("unsafe pull destination: %s", dest)
 	}
+	if !filepath.IsAbs(clean) {
+		return fmt.Errorf("relative pull destination: %s", dest)
+	}
 	return nil
 }
 
