@@ -34,12 +34,13 @@ func NewSessionManager(cfg *config.CellConfig) (*SessionManager, error) {
 	return &SessionManager{cfg: cfg, hypervisor: hv}, nil
 }
 
-func (sm *SessionManager) Launch(ctx context.Context, repoPath string, attach bool) (*models.SessionRecord, error) {
+func (sm *SessionManager) Launch(ctx context.Context, repoPath, agentConfigPath string, attach bool) (*models.SessionRecord, error) {
 	verbose.V("launch: preparing session for %s", repoPath)
 	session, err := sm.prepareSession(repoPath)
 	if err != nil {
 		return nil, err
 	}
+	session.AgentConfigPath = agentConfigPath
 	if _, err := WriteServerPassword(session.SessionDir); err != nil {
 		return nil, err
 	}
@@ -184,6 +185,9 @@ func (sm *SessionManager) buildDisk(session *models.SessionRecord) error {
 		return err
 	}
 	if err := WriteServePortToDiskRoot(rootDir, sm.cfg.AgentServePort); err != nil {
+		return err
+	}
+	if err := CopyAgentConfigToDiskRoot(session.AgentConfigPath, rootDir); err != nil {
 		return err
 	}
 

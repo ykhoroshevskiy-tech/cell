@@ -104,6 +104,13 @@ setup_agent_home() {
   RW="${MOUNT}/.filter/agent-home"
   mkdir -p "${RW}/.cache" "${RW}/.config/opencode" "${RW}/.local/share"
   CFG="${RW}/.config/opencode/opencode.json"
+  if [ -f "${MOUNT}/.filter/opencode.json" ]; then
+    if cp "${MOUNT}/.filter/opencode.json" "${CFG}"; then
+      log "agent config from host .filter/opencode.json"
+    else
+      log "WARN: failed to copy host opencode.json; using default"
+    fi
+  fi
   if [ ! -f "${CFG}" ]; then
     cat > "${CFG}" <<'EOF'
 {

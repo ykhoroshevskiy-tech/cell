@@ -30,6 +30,7 @@ type SessionRecord struct {
 	NetworkConfig    *NetworkConfig `json:"network_config,omitempty"`
 	HostForwardPort  int            `json:"host_forward_port,omitempty"`
 	Error            string         `json:"error,omitempty"`
+	AgentConfigPath  string         `json:"-"`
 }
 
 func (s *SessionRecord) ArtifactPaths(sessionDataDir string) {

@@ -17,6 +17,8 @@ func TestGuestEntryIgnoresFilterInGitignore(t *testing.T) {
 		"setup_usr_local_rw",
 		".filter/usr-local",
 		"mount --bind",
+		".filter/opencode.json",
+		"WARN: failed to copy host opencode.json; using default",
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("guest-entry.sh missing %q", want)

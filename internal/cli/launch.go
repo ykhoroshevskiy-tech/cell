@@ -37,6 +37,7 @@ func newBootstrapCmd(cfg *config.CellConfig) *cobra.Command {
 func newLaunchCmd(cfg *config.CellConfig) *cobra.Command {
 	var repo string
 	var noAttach bool
+	var configPath string
 	cmd := &cobra.Command{
 		Use:   "launch",
 		Short: "Stage repo, boot VM, attach SSH, auto-pull",
@@ -64,7 +65,19 @@ func newLaunchCmd(cfg *config.CellConfig) *cobra.Command {
 				cancel()
 			}()
 
-			sess, err := sm.Launch(ctx, repo, !noAttach)
+			agentConfig := ""
+			if configPath != "" {
+				abs, warn, err := session.ResolveAgentConfig(configPath)
+				if err != nil {
+					return err
+				}
+				if warn != "" {
+					fmt.Fprintln(cmd.ErrOrStderr(), warn)
+				}
+				agentConfig = abs
+			}
+
+			sess, err := sm.Launch(ctx, repo, agentConfig, !noAttach)
 			if sess != nil && !noAttach {
 				fmt.Printf("session %s still running; cell attach --session %s / cell stop --session %s\n",
 					sess.SessionID, sess.SessionID, sess.SessionID)
@@ -79,6 +92,7 @@ func newLaunchCmd(cfg *config.CellConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&repo, "repo", "", "Source repository directory")
+	cmd.Flags().StringVar(&configPath, "config", "", "OpenCode JSON for guest ~/.config/opencode/opencode.json")
 	cmd.Flags().BoolVar(&noAttach, "no-attach", false, "Wait for ready but do not exec SSH")
 	_ = cmd.MarkFlagRequired("repo")
 	return cmd
