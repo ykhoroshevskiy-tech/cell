@@ -31,6 +31,7 @@ func newRootCmd(cfg *config.CellConfig) *cobra.Command {
 	root.PersistentFlags().BoolVarP(&verboseFlag, "verbose", "v", false, "Verbose output (mkfs, fc requests, ssh polling, etc.)")
 
 	root.AddCommand(newBootstrapCmd(cfg))
+	root.AddCommand(newNetSetupCmd())
 	root.AddCommand(newLaunchCmd(cfg))
 	root.AddCommand(newStartCmd(cfg))
 	root.AddCommand(newAttachCmd(cfg))

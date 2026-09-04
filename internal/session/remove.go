@@ -20,6 +20,9 @@ func (sm *SessionManager) Remove(ctx context.Context, sessionID string) error {
 	if ssh.VMRunningForSession(session) {
 		return fmt.Errorf("session %s is running; stop it first", sessionID)
 	}
+	if err := network.NetSetup(); err != nil {
+		return err
+	}
 	return network.WithNetworkLock(func() error {
 		if err := os.RemoveAll(session.SessionDir); err != nil {
 			return fmt.Errorf("remove session dir: %w", err)

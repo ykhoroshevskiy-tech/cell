@@ -37,6 +37,8 @@ func writeSession(t *testing.T, cfg *config.CellConfig, session *models.SessionR
 func TestRemoveFreesLease(t *testing.T) {
 	restoreLock := network.SetLockPathForTest(filepath.Join(t.TempDir(), "cell-network.lock"))
 	defer restoreLock()
+	restoreNet := network.SetNetSetupForTest(func() error { return nil })
+	defer restoreNet()
 	restore := network.SetRunnerForTest(network.NewFakeRunnerForTest())
 	defer restore()
 
@@ -80,6 +82,8 @@ func TestRemoveFreesLease(t *testing.T) {
 func TestAllocateNetworkSequentialUniqueness(t *testing.T) {
 	restoreLock := network.SetLockPathForTest(filepath.Join(t.TempDir(), "cell-network.lock"))
 	defer restoreLock()
+	restoreNet := network.SetNetSetupForTest(func() error { return nil })
+	defer restoreNet()
 	cfg := testConfig(t)
 	sm := &SessionManager{cfg: cfg}
 	seen := map[string]struct{}{}

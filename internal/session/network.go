@@ -67,6 +67,9 @@ func (sm *SessionManager) liveNetworkConfigs(sessions []*models.SessionRecord) [
 
 // allocateNetwork assigns a stable guest IP under the global network lock.
 func (sm *SessionManager) allocateNetwork(sessionID string) (*models.NetworkConfig, error) {
+	if err := network.NetSetup(); err != nil {
+		return nil, err
+	}
 	var netCfg *models.NetworkConfig
 	err := network.WithNetworkLock(func() error {
 		sessions, err := sm.loadAllSessions()
@@ -85,6 +88,9 @@ func (sm *SessionManager) allocateNetwork(sessionID string) (*models.NetworkConf
 
 // reconcileNetwork repairs stale records and converges bridge/TAP/firewall state.
 func (sm *SessionManager) reconcileNetwork(include *models.NetworkConfig) error {
+	if err := network.NetSetup(); err != nil {
+		return err
+	}
 	return network.WithNetworkLock(func() error {
 		sessions, err := sm.loadAllSessions()
 		if err != nil {
