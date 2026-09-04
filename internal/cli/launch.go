@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/ykhoroshevskiy-tech/cell/internal/bootstrap"
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
+	"github.com/ykhoroshevskiy-tech/cell/internal/privilege"
 	"github.com/ykhoroshevskiy-tech/cell/internal/session"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
 )
@@ -20,7 +21,13 @@ func newBootstrapCmd(cfg *config.CellConfig) *cobra.Command {
 		Use:   "bootstrap",
 		Short: "Download/build kernel, rootfs, firecracker",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := privilege.RequireBootstrapRoot(); err != nil {
+				return err
+			}
 			if err := bootstrap.Ensure(cfg, force, rebuildRootfs); err != nil {
+				return err
+			}
+			if err := bootstrap.PrepareRuntimeEnvironment(cfg); err != nil {
 				return err
 			}
 			fmt.Printf("firecracker: %s\n", cfg.FirecrackerBin)

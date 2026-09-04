@@ -28,23 +28,26 @@ Early / experimental.
 
 **Tested so far only with [OpenCode](https://github.com/sst/opencode)** as the in-guest coding agent. Other agents may work later; they are not validated yet.
 
-Requires Linux with KVM. Runtime commands must run as root (`sudo cell`); `version` and `help` do not.
+Requires Linux with KVM. `bootstrap` must run as root (`sudo cell bootstrap`); runtime commands run without sudo for users in the `cell` group. `rescue` still needs root (loop mount). `version` and `help` do not require privileges.
 
 ## Requirements
 
-- Linux with KVM (`/dev/kvm`)
-- Root for runtime commands
+- Linux with KVM (`/dev/kvm`); user in the `kvm` group
+- Root for `cell bootstrap` and `cell rescue`
 - Go 1.26+ to build
-- Host tools: `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`, `debootstrap`, [OpenCode](https://github.com/sst/opencode) (`opencode` on PATH)
+- Host tools: `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`, `debootstrap`, `setcap` (libcap2-bin), [OpenCode](https://github.com/sst/opencode) (`opencode` on PATH)
 
 ## Build & install
 
 ```sh
 go build -o cell ./cmd/cell
 sudo install -m 755 cell /usr/bin/cell
+sudo cell bootstrap   # cell group, setcap on /usr/bin/cell (0750 root:cell), shared /var/lib/cell
 ```
 
-Optional network smoke test (root, KVM, prior bootstrap):
+After bootstrap, re-login (or `newgrp cell`) so group membership applies. Bootstrap adds `$SUDO_USER` to the `cell` group when run via sudo; otherwise it prints the `usermod` command. Re-running `sudo install` strips capabilities — run `sudo cell bootstrap` again after reinstall.
+
+Optional network smoke test (KVM, prior bootstrap):
 
 ```sh
 sudo scripts/e2e-network.sh ./cell
@@ -54,13 +57,13 @@ sudo scripts/e2e-network.sh ./cell
 
 ```sh
 sudo cell bootstrap
-sudo cell launch --repo /path/to/your/repo
-sudo cell launch --repo /path/to/your/repo --config /path/to/opencode.json
+cell launch --repo /path/to/your/repo
+cell launch --repo /path/to/your/repo --config /path/to/opencode.json   # optional
 
-sudo cell ps
-sudo cell attach --session <session-id>
-sudo cell pull --session <session-id>
-sudo cell stop --session <session-id>
+cell ps
+cell attach --session <session-id>
+cell pull --session <session-id>
+cell stop --session <session-id>
 ```
 
 ## Commands
@@ -79,7 +82,7 @@ sudo cell stop --session <session-id>
 | `logs`      | Print serial.log                              |
 | `ps`        | List sessions                                 |
 | `pull`      | Rsync guest workspace back to host repo       |
-| `rescue`    | Extract workspace from project disk           |
+| `rescue`    | Extract workspace from project disk (needs sudo) |
 | `version`   | Print version                                 |
 
 Global flags: `--quiet`, `--verbose` (`-v`).

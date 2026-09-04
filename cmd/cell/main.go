@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/ykhoroshevskiy-tech/cell/internal/cli"
+	"github.com/ykhoroshevskiy-tech/cell/internal/privilege"
 )
 
 func main() {
@@ -12,11 +13,10 @@ func main() {
 		println("cell requires Linux with KVM")
 		os.Exit(1)
 	}
-	if len(os.Args) < 2 || (os.Args[1] != "version" && os.Args[1] != "help" && os.Args[1] != "--help" && os.Args[1] != "-h") {
-		if os.Geteuid() != 0 {
-			println("cell must be run as root — use: sudo cell")
-			os.Exit(1)
-		}
+	privilege.RaiseAmbientNetCaps()
+	if err := privilege.RequireRuntimeAccess(); err != nil {
+		println(err.Error())
+		os.Exit(1)
 	}
 	if err := cli.Execute(); err != nil {
 		println("error:", err.Error())
