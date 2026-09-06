@@ -28,12 +28,12 @@ Early / experimental.
 
 **Tested so far only with [OpenCode](https://github.com/sst/opencode)** as the in-guest coding agent. Other agents may work later; they are not validated yet.
 
-Requires Linux with KVM. `bootstrap` must run as root (`sudo cell bootstrap`); runtime commands run without sudo for users in the `cell` group. `rescue` still needs root (loop mount). `version` and `help` do not require privileges.
+Requires Linux with KVM. `bootstrap` and `rescue` re-exec themselves under `sudo` automatically (root is still required under the hood). Runtime commands run without sudo for users in the `cell` group; `bootstrap` also adds the user to the `kvm` group when `/dev/kvm` exists. `version` and `help` do not require privileges.
 
 ## Requirements
 
-- Linux with KVM (`/dev/kvm`); user in the `kvm` group
-- Root for `cell bootstrap` and `cell rescue`
+- Linux with KVM (`/dev/kvm`); user in the `kvm` group (`bootstrap` adds you automatically)
+- Sudo rights for `cell bootstrap` and `cell rescue` (they re-exec under sudo; no need to type sudo)
 - Go 1.26+ to build
 - Host tools: `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`, `debootstrap`, `setcap` (libcap2-bin), [OpenCode](https://github.com/sst/opencode) (`opencode` on PATH)
 
@@ -42,10 +42,10 @@ Requires Linux with KVM. `bootstrap` must run as root (`sudo cell bootstrap`); r
 ```sh
 go build -o cell ./cmd/cell
 sudo install -m 755 cell /usr/bin/cell
-sudo cell bootstrap   # cell group, setcap on /usr/bin/cell (0750 root:cell), shared /var/lib/cell
+cell bootstrap   # auto-elevates via sudo; cell+kvm groups, setcap on /usr/bin/cell (0750 root:cell), shared /var/lib/cell
 ```
 
-After bootstrap, re-login (or `newgrp cell`) so group membership applies. Bootstrap adds `$SUDO_USER` to the `cell` group when run via sudo; otherwise it prints the `usermod` command. Re-running `sudo install` strips capabilities — run `sudo cell bootstrap` again after reinstall.
+After bootstrap, re-login (or `newgrp cell`) so group membership applies. Bootstrap adds `$SUDO_USER` to the `cell` and `kvm` groups when run via sudo; otherwise it prints the `usermod` command. Sessions created by an earlier sudo-based `cell launch` (root-owned files) are handed to the `cell` group by the next `cell bootstrap`; a VM still running as root needs one `sudo cell stop` to retire. Re-running `sudo install` strips capabilities — run `cell bootstrap` again after reinstall.
 
 Optional network smoke test (KVM, prior bootstrap):
 
@@ -56,7 +56,7 @@ sudo scripts/e2e-network.sh ./cell
 ## Quick start
 
 ```sh
-sudo cell bootstrap
+cell bootstrap
 cell launch --repo /path/to/your/repo
 cell launch --repo /path/to/your/repo --config /path/to/opencode.json   # optional
 
@@ -82,7 +82,7 @@ cell stop --session <session-id>
 | `logs`      | Print serial.log                              |
 | `ps`        | List sessions                                 |
 | `pull`      | Rsync guest workspace back to host repo       |
-| `rescue`    | Extract workspace from project disk (needs sudo) |
+| `rescue`    | Extract workspace from project disk (auto-elevates via sudo) |
 | `version`   | Print version                                 |
 
 Global flags: `--quiet`, `--verbose` (`-v`).
@@ -142,7 +142,7 @@ All sessions share one Linux bridge (`cell0`, `172.16.107.1/24`). Each session g
 
 Before `launch`, `start`, `stop`, and `rm`, cell reconciles bridge/TAP/firewall state under `/run/lock/cell-network.lock`. Stopped sessions keep their IP lease until removed.
 
-Legacy sessions (pre-bridge network records) are not migrated. Remove them with `sudo cell rm --session <id>` (or `--legacy` for old records), then launch again.
+Legacy sessions (pre-bridge network records) are not migrated. Remove them with `cell rm --session <id> --legacy` (old records), then launch again.
 
 After building, `sudo scripts/e2e-network.sh ./cell` smoke-tests two VMs (distinct IPs, guest isolation, stale TAP cleanup, lease reuse). Host reboot recovery (`cell start`) is not automated in that script.
 

@@ -29,7 +29,7 @@ func openLockFile() (*os.File, error) {
 	if !os.IsNotExist(err) {
 		return nil, fmt.Errorf("open network lock: %w", err)
 	}
-	f, err = os.OpenFile(networkLockPath, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0644)
+	f, err = os.OpenFile(networkLockPath, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0664)
 	if err == nil {
 		return f, nil
 	}

@@ -53,7 +53,7 @@ func NeedsRuntimeAccess(args []string) bool {
 		return false
 	}
 	switch args[1] {
-	case "version", "help", "--help", "-h", "bootstrap":
+	case "version", "help", "--help", "-h", "bootstrap", "rescue":
 		return false
 	default:
 		return true
