@@ -2,9 +2,12 @@ package bootstrap
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"os/user"
 	"path/filepath"
+	"strings"
 
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
 	"github.com/ykhoroshevskiy-tech/cell/internal/network"
@@ -48,6 +51,10 @@ func PrepareRuntimeEnvironment(cfg *config.CellConfig) error {
 		}
 	}
 
+	if err := migrateLegacySessionOwnership(cfg.SessionDataDir); err != nil {
+		return err
+	}
+
 	if err := network.PrepareNetworkLockForGroup(gid); err != nil {
 		return err
 	}
@@ -62,19 +69,66 @@ func PrepareRuntimeEnvironment(cfg *config.CellConfig) error {
 		return err
 	}
 
+	groups := runtimeGroups()
 	if sudoUser := os.Getenv("SUDO_USER"); sudoUser != "" {
-		cmd := exec.Command("usermod", "-aG", privilege.CellGroupName, sudoUser)
+		joined := strings.Join(groups, ",")
+		cmd := exec.Command("usermod", "-aG", joined, sudoUser)
 		if out, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("usermod -aG %s %s: %w\n%s", privilege.CellGroupName, sudoUser, err, out)
+			return fmt.Errorf("usermod -aG %s %s: %w\n%s", joined, sudoUser, err, out)
 		}
-		fmt.Printf("added %s to group %s (re-login or newgrp %s)\n", sudoUser, privilege.CellGroupName, privilege.CellGroupName)
+		for _, g := range groups {
+			fmt.Printf("added %s to group %s (re-login or newgrp %s)\n", sudoUser, g, g)
+		}
 	} else {
-		fmt.Printf("add your user to group %s: sudo usermod -aG %s \"$USER\" && newgrp %s\n",
-			privilege.CellGroupName, privilege.CellGroupName, privilege.CellGroupName)
+		fmt.Printf("add your user to groups %s: sudo usermod -aG %s \"$USER\" && newgrp %s\n",
+			strings.Join(groups, ","), strings.Join(groups, ","), privilege.CellGroupName)
 	}
 
 	fmt.Println("✓ rootless runtime environment ready")
 	return nil
+}
+
+// runtimeGroups returns the host groups a runtime user needs: cell plus kvm
+// when /dev/kvm exists (firecracker runs as the invoking user, not root).
+func runtimeGroups() []string {
+	groups := []string{privilege.CellGroupName}
+	if _, err := os.Stat("/dev/kvm"); err != nil {
+		return groups
+	}
+	if _, err := user.LookupGroup("kvm"); err != nil {
+		return groups
+	}
+	return append(groups, "kvm")
+}
+
+// migrateLegacySessionOwnership hands files from earlier sudo-created sessions
+// to the cell group so runtime commands can manage them without sudo. SSH
+// private keys are re-tightened to 0600 afterwards because ssh rejects
+// group-readable keys.
+func migrateLegacySessionOwnership(sessionDataDir string) error {
+	st, err := os.Stat(sessionDataDir)
+	if err != nil || !st.IsDir() {
+		return nil
+	}
+	if out, err := exec.Command("chgrp", "-R", privilege.CellGroupName, sessionDataDir).CombinedOutput(); err != nil {
+		return fmt.Errorf("chgrp -R %s %s: %w\n%s", privilege.CellGroupName, sessionDataDir, err, out)
+	}
+	if out, err := exec.Command("chmod", "-R", "g+rwX", sessionDataDir).CombinedOutput(); err != nil {
+		return fmt.Errorf("chmod -R g+rwX %s: %w\n%s", sessionDataDir, err, out)
+	}
+	return retightenSSHKeys(sessionDataDir)
+}
+
+func retightenSSHKeys(sessionDataDir string) error {
+	return filepath.WalkDir(sessionDataDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || d.Name() != "id_ed25519" {
+			return nil
+		}
+		return os.Chmod(path, 0600)
+	})
 }
 
 func applyFileCaps(gid int) error {
@@ -106,11 +160,8 @@ func applyFileCaps(gid int) error {
 		if out, err := setcap.CombinedOutput(); err != nil {
 			return fmt.Errorf("setcap %s: %w\n%s", p, err, out)
 		}
-		if err := os.Chown(p, 0, gid); err != nil {
-			return fmt.Errorf("chown %s: %w", p, err)
-		}
-		if err := os.Chmod(p, 0750); err != nil {
-			return fmt.Errorf("chmod 0750 %s: %w", p, err)
+		if err := network.ChownRootCell(p, gid, 0750); err != nil {
+			return err
 		}
 		fmt.Printf("capabilities on %s (mode 0750 root:%s)\n", p, privilege.CellGroupName)
 	}

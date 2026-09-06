@@ -18,6 +18,9 @@ func TestNeedsRuntimeAccess(t *testing.T) {
 	if privilege.NeedsRuntimeAccess([]string{"cell", "bootstrap"}) {
 		t.Fatal("bootstrap should be exempt")
 	}
+	if privilege.NeedsRuntimeAccess([]string{"cell", "rescue"}) {
+		t.Fatal("rescue should be exempt")
+	}
 	if privilege.NeedsRuntimeAccess([]string{"cell", "version"}) {
 		t.Fatal("version should be exempt")
 	}

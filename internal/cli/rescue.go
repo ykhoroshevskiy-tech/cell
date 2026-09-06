@@ -2,10 +2,10 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/spf13/cobra"
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
+	"github.com/ykhoroshevskiy-tech/cell/internal/privilege"
 	"github.com/ykhoroshevskiy-tech/cell/internal/session"
 )
 
@@ -15,8 +15,8 @@ func newRescueCmd(cfg *config.CellConfig) *cobra.Command {
 		Use:   "rescue",
 		Short: "Extract workspace from project disk",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if os.Geteuid() != 0 {
-				return fmt.Errorf("cell: rescue requires root (loop mount)")
+			if err := privilege.MaybeElevate("rescue"); err != nil {
+				return err
 			}
 			if sessionID == "" || dest == "" {
 				return fmt.Errorf("--session and --dest are required")

@@ -2,6 +2,7 @@ package hypervisor
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/ykhoroshevskiy-tech/cell/internal/firecracker"
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
+	"github.com/ykhoroshevskiy-tech/cell/internal/privilege"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
 )
 
@@ -30,6 +32,9 @@ func (f *FirecrackerHypervisor) Start(ctx context.Context, cfg *models.VmConfigD
 
 	// Long-lived: plain Command, NOT CommandContext — a cancelled parent ctx would SIGKILL FC.
 	cmd := exec.Command(f.BinPath, "--api-sock", socketPath)
+	if attr := privilege.AmbientSysProcAttr(); attr != nil {
+		cmd.SysProcAttr = attr
+	}
 	stdin, err := os.Open(os.DevNull)
 	if err != nil {
 		logFile.Close()
@@ -94,7 +99,12 @@ func (f *FirecrackerHypervisor) Stop(pid int) error {
 	if err != nil {
 		return nil
 	}
-	_ = proc.Signal(syscall.SIGTERM)
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		if errors.Is(err, os.ErrPermission) {
+			return fmt.Errorf("cannot stop VM pid %d (started as another user?): run: sudo cell stop", pid)
+		}
+		return nil // already gone (reaped by Start's Wait goroutine)
+	}
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		if err := proc.Signal(syscall.Signal(0)); err != nil {

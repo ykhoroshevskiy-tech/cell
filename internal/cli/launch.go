@@ -21,7 +21,7 @@ func newBootstrapCmd(cfg *config.CellConfig) *cobra.Command {
 		Use:   "bootstrap",
 		Short: "Download/build kernel, rootfs, firecracker",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := privilege.RequireBootstrapRoot(); err != nil {
+			if err := privilege.MaybeElevate("bootstrap"); err != nil {
 				return err
 			}
 			if err := bootstrap.Ensure(cfg, force, rebuildRootfs); err != nil {
