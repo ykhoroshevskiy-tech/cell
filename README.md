@@ -23,6 +23,22 @@ AI coding agents need shell access, package installs, and freedom to change file
  └──────────────────────────────────────────────────────────────┘
 ```
 
+## Contents
+
+[Why cell](#why-cell) ·
+[How it works](#how-it-works) ·
+[Demo](#demo) ·
+[Requirements](#requirements) ·
+[Build & install](#build--install) ·
+[Quick start](#quick-start) ·
+[Commands](#commands) ·
+[Security & threat model](#security--threat-model) ·
+[Why not Docker / gVisor / Kata](#why-not-docker--gvisor--kata) ·
+[Configuration](#configuration) ·
+[Networking](#networking) ·
+[Architecture](ARCHITECTURE.md) ·
+[License](#license)
+
 ## Why cell
 
 - **Agent isolation** — the agent runs in its own kernel (Firecracker/KVM), not as a process or container sharing your host kernel and home directory.
@@ -31,15 +47,13 @@ AI coding agents need shell access, package installs, and freedom to change file
 
 ## How it works
 
-1. **Stage** — copy the repo onto a project disk (includes `.filter/opencode-server.pass`)
-2. **Boot** — Firecracker microVM with a pinned kernel/rootfs
-3. **Serve** — `opencode serve` runs in the guest (binds `127.0.0.1`)
-4. **Attach** — host runs `opencode attach` over an SSH `-L` tunnel to the guest server
-5. **Sync** — `cell pull` or auto-pull while attached syncs guest workspace changes back to the host repo (skips `.filter`). `--repo` is stored as an absolute path; pull dest must be absolute. Optional `--config` is copied to `.filter/opencode.json` and loaded as the guest agent config (`~/.config/opencode/opencode.json`); it is not stored in `session.json` and is skipped by pull.
+1. **Stage** — the repo is copied onto a fresh project disk image
+2. **Boot** — Firecracker microVM with a pinned kernel and read-only rootfs
+3. **Serve** — `opencode serve` runs in the guest (loopback, basic-auth)
+4. **Attach** — the host TUI connects over an SSH `-L` tunnel
+5. **Sync** — auto-pull rsyncs guest changes back to the host repo
 
-The OpenCode TUI runs on your host (clipboard works locally, not over SSH). Exiting the TUI leaves the VM running; use `sudo cell stop` to shut it down. After a host reboot, `sudo cell start --session <id>` boots the existing disk again.
-
-You keep working as if the agent is local; the risky part stays in the VM.
+Details in [ARCHITECTURE.md](ARCHITECTURE.md). The OpenCode TUI runs on your host (clipboard works locally, not over SSH). Exiting the TUI leaves the VM running; `sudo cell stop` shuts it down. After a host reboot, `sudo cell start --session <id>` boots the existing disk again.
 
 ## Demo
 
@@ -53,12 +67,16 @@ $ cell ps
 SESSION        STATE      GUEST_IP         REPO                      CREATED
 5f2a9c2d3e07   running    172.16.107.2     /home/user/projects/cell  2026-09-13T12:00:00Z
 
-$ cell __complete attach --session ''
-5f2a9c2d3e07	/home/user/projects/cell (running)
-:4
-
 $ sudo cell stop --all
 stopped 1 session(s)
+```
+
+Shell completion in action — this is what zsh sees when you press TAB after
+`sudo cell attach --session`:
+
+```
+$ sudo cell attach --session <TAB>
+5f2a9c2d3e07  /home/user/projects/cell (running)
 ```
 
 Shell completions (`cell completion zsh`) and the oh-my-zsh plugin
@@ -134,64 +152,49 @@ sudo cell stop --session <session-id>
 
 Global flags: `--quiet`, `--verbose` (`-v`).
 
+## Security & threat model
+
+**What is protected:**
+
+- **Host filesystem and processes** — the agent never runs on the host; it sees only the staged copy of your repo on the project disk (`/dev/vdb` inside the VM). No host mounts, no host socket, no Docker/container shared kernel.
+- **Own kernel** — Firecracker microVMs boot a pinned kernel; agent-side kernel exploits land in the VM, not in your host.
+- **Read-only rootfs** — the guest OS image is immutable; the agent can write only to `/tmp`, the project disk, and the `/usr/local` bind mount.
+- **Guest-to-guest and guest-to-private isolation** — bridge port isolation blocks L2 traffic between guests; firewall drops guest→RFC1918 traffic. Guest egress is NATed through one bridge (`cell0`).
+- **Guest API access** — the in-guest opencode server binds loopback and requires a password generated with `crypto/rand` (16 bytes hex, mode `0600`, root-owned in the host session dir).
+
+**What is NOT protected (read this):**
+
+- **Unrestricted guest egress** — guests reach the internet through NAT; there is no per-guest egress policy. A compromised agent can call any external host.
+- **Host commands run as root** — every mutating `cell` command executes on the host with full root privileges. `cell` is trusted tooling; do not grant sudo to untrusted users.
+- **No Firecracker jailer** — the VMM runs as root without `--jailer` sandboxing; the isolation boundary is the KVM/VM boundary itself.
+- **The password is readable inside the guest** — `.filter/opencode-server.pass` sits in the agent’s own workspace; the host↔VM boundary is what it protects, not agent↔guest.
+- **The guest trusts its `agent` user** — passwordless sudo inside the guest is by design (the agent IS the admin of the VM); host safety comes from the VM boundary, not guest users.
+
+## Why not Docker / gVisor / Kata
+
+- **Docker / containers** — same host kernel, isolation by namespaces and cgroups. Kernel attacks, `/proc`/`/sys` leakage, and container-escape CVEs apply directly to the host. `cell` gives every agent its own kernel with a minimal attack surface (KVM + virtio only).
+- **gVisor** — sandboxes syscalls in a userspace kernel. Strong syscall boundary, but a translation layer with real performance costs and syscall gaps — and it still mediates against the host kernel, not a separate one. Firecracker keeps full syscall compatibility with hardware isolation.
+- **Kata Containers** — also full VMs, but carries the whole container stack (QEMU, runtimes). Firecracker is a purpose-built microVMM with sub-second boot; `cell` adds the agent workflow (staging, tmux, tunnel, workspace sync) on top.
+- **The cost:** Firecracker needs `/dev/kvm` and a Linux host — it does not run inside VMs without nested virtualization, and not on macOS/Windows.
+
 ## Configuration
 
-Defaults can be overridden with `CELL_*` environment variables.
-
-Artifact pins (defaults are fixed for reproducible bootstrap; override to change the stack):
-
-| Setting | Default |
-|---------|---------|
-| `CELL_CI_PREFIX` | `firecracker-ci/20260708-f11c230ed107-0/` |
-| `CELL_KERNEL_VERSION` | `6.1.176` |
-| `CELL_FIRECRACKER_VERSION` | `v1.16.1` |
-| `CELL_SQUASHFS_VERSION` | unused (rootfs is debootstrap noble, not squashfs) |
-
-Path overrides (`CELL_KERNEL_PATH`, `CELL_FIRECRACKER_BIN`, `CELL_SQUASHFS_PATH`) still win when the file already exists.
-
-In-guest agent (vendor-neutral; **defaults install OpenCode**):
+A compact surface; the complete `CELL_*` reference lives in
+[CONFIGURATION.md](CONFIGURATION.md).
 
 | Setting | Default |
 |---------|---------|
-| `CELL_AGENT_URL` | OpenCode release tarball (`…/opencode-{target}.tar.gz`); empty skips install |
-| `CELL_AGENT_BIN` | `opencode` |
-| `CELL_AGENT_CMD` | `opencode serve --hostname 127.0.0.1 --port 4096` |
-| `CELL_AGENT_SERVE_PORT` | `4096` |
-| `CELL_HOST_AGENT_BIN` | `opencode` |
-| `CELL_TMUX_SESSION_NAME` | `agent` |
-
-`{target}` in the URL is replaced with `linux-x64-baseline` / `linux-arm64-baseline`.
-
-The host must have OpenCode installed (`CELL_HOST_AGENT_BIN` or `opencode` on PATH). `cell launch` / `cell attach` fail fast if it is missing; the VM keeps running.
-
-Guest rootfs is Ubuntu 24.04 via `debootstrap` (apt works) and is mounted read-only. `/usr/local` is bind-mounted from the project disk so the agent can install to `/usr/local/bin`. Node LTS (`CELL_NODE_VERSION`, default `v24.20.0`), uv (`CELL_UV_VERSION`, default `0.12.7`), and CPython (`CELL_PYTHON_VERSION`, default `3.13`) are installed to `/usr/local`. Superpowers is installed at `/opt/opencode-plugins`. Rebuild after this change: `sudo cell bootstrap --rebuild-rootfs`. Host needs the `debootstrap` package.
-
-The guest has `git` and passwordless `sudo` for user `agent`. New sessions get a 3072 MiB project disk (`CELL_PROJECT_DISK_SIZE_MB`); rootfs size stays 4096 MiB (`CELL_ROOTFS_SIZE_MB`) and does not scale with the project disk. Existing session disks are not resized.
-
-Runtime:
-
-| Setting                  | Default           |
-|--------------------------|-------------------|
-| `CELL_DATA_DIR`          | `/var/lib/cell`   |
-| `CELL_PROJECT_DISK_SIZE_MB` | `3072`         |
-| `CELL_ROOTFS_SIZE_MB`    | `4096`            |
-| `CELL_NODE_VERSION`      | `v24.20.0`        |
-| `CELL_UV_VERSION`        | `0.12.7`          |
-| `CELL_PYTHON_VERSION`    | `3.13`            |
-| `CELL_VCPU_COUNT`        | `4`               |
-| `CELL_MEM_SIZE_MIB`      | `8192`            |
-| `CELL_AUTO_PULL`         | `true`            |
-| `CELL_AUTO_PULL_INTERVAL_SEC` | `30`         |
+| `CELL_DATA_DIR` | `/var/lib/cell` |
+| `CELL_PROJECT_DISK_SIZE_MB` | `3072` |
+| `CELL_VCPU_COUNT` / `CELL_MEM_SIZE_MIB` | `4` / `8192` |
+| `CELL_AUTO_PULL` / `CELL_AUTO_PULL_INTERVAL_SEC` | `true` / `30` |
+| `CELL_INSTALL_SUPERPOWERS` | `false` (opt-in guest agent tooling) |
 
 ## Networking
 
-All sessions share one Linux bridge (`cell0`, `172.16.107.1/24`). Each session gets a stable guest IP (`.2`–`.254`) persisted in `session.json` (`network_version: 2`). TAP devices attach to the bridge without host-side IP addresses; bridge port isolation blocks guest-to-guest L2 traffic.
-
-Before `launch`, `start`, `stop`, and `rm`, cell reconciles bridge/TAP/firewall state under `/run/lock/cell-network.lock`. Stopped sessions keep their IP lease until removed.
+All sessions share one Linux bridge (`cell0`, `172.16.107.1/24`) with stable guest IPs (`.2`–`.254`) persisted per session. Bridge port isolation blocks guest-to-guest traffic; the runtime reconciles bridge/TAP/firewall state under a global lock before any mutating command. Full details in [ARCHITECTURE.md](ARCHITECTURE.md#networking).
 
 Legacy sessions (pre-bridge network records) are not migrated. Remove them with `sudo cell rm --session <id> --legacy`, then launch again.
-
-After building, `sudo scripts/e2e-network.sh ./cell` smoke-tests two VMs (distinct IPs, guest isolation, stale TAP cleanup, lease reuse). Host reboot recovery (`cell start`) is not automated in that script.
 
 ## License
 
