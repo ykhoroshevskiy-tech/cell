@@ -1,0 +1,6 @@
+.filter/
+.filter-staged
+lost+found/
+cell
+cell.exe
+*.vsix
