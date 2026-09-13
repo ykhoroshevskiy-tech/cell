@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
+	"github.com/ykhoroshevskiy-tech/cell/internal/version"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
 )
 
@@ -106,7 +107,7 @@ func newVersionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print version",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cmd.Println("cell 0.1.0")
+			cmd.Printf("cell %s\n", version.Version)
 			return nil
 		},
 	}

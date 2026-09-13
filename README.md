@@ -39,8 +39,12 @@ Requires Linux with KVM. Mutating commands (`bootstrap`, `launch`, `start`, `sto
 
 ## Build & install
 
+Version bumps on every commit automatically: `scripts/build.sh` derives
+`0.<minor>.<commit-count>+g<short-sha>` from git history and embeds it via
+`-ldflags`.
+
 ```sh
-go build -o cell ./cmd/cell
+scripts/build.sh            # produces ./cell with the git-derived version
 sudo install -m 755 cell /usr/bin/cell
 sudo cell bootstrap   # downloads/builds kernel, rootfs, firecracker into /var/lib/cell
 ```
