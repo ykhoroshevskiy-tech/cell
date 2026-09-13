@@ -25,3 +25,18 @@ func TestGuestEntryIgnoresFilterInGitignore(t *testing.T) {
 		}
 	}
 }
+
+func TestGuestEntryPluginEntryConditionalOnSuperpowers(t *testing.T) {
+	data, err := Scripts.ReadFile("guest-entry.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(data)
+	for _, want := range []string{
+		"[ -d /opt/opencode-plugins/node_modules/superpowers ]",
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("guest-entry.sh missing conditional plugin marker %q", want)
+		}
+	}
+}

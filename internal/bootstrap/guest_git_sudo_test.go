@@ -50,7 +50,7 @@ func TestWriteAgentSudoers(t *testing.T) {
 }
 
 func TestGuestCustomizeScriptChecksGitSudoNode(t *testing.T) {
-	script := guestCustomizeScript()
+	script := guestCustomizeScript(&config.CellConfig{InstallSuperpowers: true})
 	for _, want := range []string{
 		"command -v git",
 		"command -v sudo",
@@ -60,6 +60,21 @@ func TestGuestCustomizeScriptChecksGitSudoNode(t *testing.T) {
 		"command -v python3",
 		"su - agent -c 'sudo -n true'",
 		"/opt/opencode-plugins/node_modules/superpowers",
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("guestCustomizeScript() missing %q", want)
+		}
+	}
+}
+
+func TestGuestCustomizeScriptOmitsSuperpowersWhenDisabled(t *testing.T) {
+	script := guestCustomizeScript(&config.CellConfig{InstallSuperpowers: false})
+	if strings.Contains(script, "superpowers") {
+		t.Fatalf("disabled install must not verify superpowers: %q", script)
+	}
+	for _, want := range []string{
+		"command -v git",
+		"test -x /opt/guest-init/guest-entry.sh",
 	} {
 		if !strings.Contains(script, want) {
 			t.Fatalf("guestCustomizeScript() missing %q", want)
@@ -84,9 +99,20 @@ func TestRootfsSizeMBIndependentOfProjectDisk(t *testing.T) {
 
 func TestSquashfsBuildStampIncludesNodeVersion(t *testing.T) {
 	cfg := &config.CellConfig{NodeVersion: "v24.20.0"}
-	want := "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13"
+	want := "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off"
 	if got := squashfsBuildStamp(cfg); got != want {
 		t.Fatalf("squashfsBuildStamp() = %q, want %q", got, want)
+	}
+}
+
+func TestSquashfsBuildStampSuperpowersToggle(t *testing.T) {
+	off := squashfsBuildStamp(&config.CellConfig{InstallSuperpowers: false})
+	on := squashfsBuildStamp(&config.CellConfig{InstallSuperpowers: true})
+	if on == off {
+		t.Fatal("stamp must differ between superpowers on/off (forces rebuild)")
+	}
+	if !strings.HasSuffix(on, "+sp:on") || !strings.HasSuffix(off, "+sp:off") {
+		t.Fatalf("stamps: on=%q off=%q", on, off)
 	}
 }
 

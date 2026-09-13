@@ -53,7 +53,11 @@ func squashfsBuildStamp(cfg *config.CellConfig) string {
 	if py == "" {
 		py = "3.13"
 	}
-	return "debootstrap:noble+apt+node:" + node + "+uv:" + uv + "+py:" + py
+	sp := "off"
+	if cfg.InstallSuperpowers {
+		sp = "on"
+	}
+	return "debootstrap:noble+apt+node:" + node + "+uv:" + uv + "+py:" + py + "+sp:" + sp
 }
 
 func needsRootfsRebuild(rootfsPath, expectedStamp string, rebuildRequested bool) (bool, error) {
@@ -316,15 +320,17 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 	if err := runChroot(root, "/bin/bash", "-c", guestPythonInstallScript(cfg.PythonVersion)); err != nil {
 		return fmt.Errorf("chroot uv python: %w", err)
 	}
-	fmt.Println("chroot: npm install superpowers…")
-	if err := runChroot(root, "/bin/bash", "-c", guestSuperpowersInstallScript()); err != nil {
-		return fmt.Errorf("chroot npm superpowers: %w", err)
+	if cfg.InstallSuperpowers {
+		fmt.Println("chroot: npm install superpowers…")
+		if err := runChroot(root, "/bin/bash", "-c", guestSuperpowersInstallScript()); err != nil {
+			return fmt.Errorf("chroot npm superpowers: %w", err)
+		}
 	}
 	if err := writeAgentSudoers(root); err != nil {
 		return err
 	}
 
-	customize := guestCustomizeScript()
+	customize := guestCustomizeScript(cfg)
 	fmt.Println("chroot: customize (user, verify binaries)…")
 	if err := runChroot(root, "/bin/bash", "-c", customize); err != nil {
 		return fmt.Errorf("chroot customize: %w", err)
@@ -678,8 +684,8 @@ func writeAgentSudoers(root string) error {
 	return os.WriteFile(path, []byte(agentSudoersBody()), 0440)
 }
 
-func guestCustomizeScript() string {
-	return `
+func guestCustomizeScript(cfg *config.CellConfig) string {
+	script := `
 set -eux
 id agent >/dev/null 2>&1 || useradd -m -s /bin/zsh agent
 mkdir -p /run/sshd
@@ -695,14 +701,19 @@ command -v npm
 command -v uv
 command -v python3
 su - agent -c 'sudo -n true'
-test -d /opt/opencode-plugins/node_modules/superpowers
-test -x /opt/guest-init/guest-entry.sh
+`
+	if cfg.InstallSuperpowers {
+		script += `test -d /opt/opencode-plugins/node_modules/superpowers
+`
+	}
+	script += `test -x /opt/guest-init/guest-entry.sh
 if ldd /usr/bin/rsync 2>/dev/null | grep -q 'not found'; then
   echo "rsync has unresolved shared libraries:" >&2
   ldd /usr/bin/rsync >&2 || true
   exit 1
 fi
 `
+	return script
 }
 
 func guestPathExists(root, rel string) bool {

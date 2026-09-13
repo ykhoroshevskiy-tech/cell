@@ -32,6 +32,7 @@ type CellConfig struct {
 	TmuxSessionName     string        `mapstructure:"tmux_session_name"`
 	IncludeGit          bool          `mapstructure:"include_git"`
 	ExcludePatterns     []string      `mapstructure:"exclude_patterns"`
+	InstallSuperpowers  bool          `mapstructure:"install_superpowers"`
 	AutoPull            bool          `mapstructure:"auto_pull"`
 	AutoPullIntervalSec int           `mapstructure:"auto_pull_interval_sec"`
 	RebuildRootfs       bool          `mapstructure:"rebuild_rootfs"`
@@ -128,6 +129,7 @@ func Load() (*CellConfig, error) {
 		"boot_timeout_sec", "ssh_ready_timeout_sec",
 		"guest_project_mount", "guest_repo_dir", "guest_attach_script", "guest_project_device",
 		"ssh_user", "tmux_session_name", "include_git", "exclude_patterns",
+		"install_superpowers",
 		"auto_pull", "auto_pull_interval_sec", "rebuild_rootfs", "ssh_public_key",
 		"ci_prefix", "kernel_version", "firecracker_version", "squashfs_version", "node_version",
 		"uv_version", "python_version",
@@ -155,6 +157,7 @@ func Load() (*CellConfig, error) {
 	v.SetDefault("tmux_session_name", def.TmuxSessionName)
 	v.SetDefault("include_git", def.IncludeGit)
 	v.SetDefault("exclude_patterns", def.ExcludePatterns)
+	v.SetDefault("install_superpowers", def.InstallSuperpowers)
 	v.SetDefault("auto_pull", def.AutoPull)
 	v.SetDefault("auto_pull_interval_sec", def.AutoPullIntervalSec)
 	v.SetDefault("rebuild_rootfs", def.RebuildRootfs)
