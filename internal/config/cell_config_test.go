@@ -203,3 +203,22 @@ func TestLoadDerivesManagedSquashfsPathFromVersion(t *testing.T) {
 		t.Fatalf("SquashfsPath = %q, want %q", cfg.SquashfsPath, "/tmp/cell-images/ubuntu-22.04.squashfs")
 	}
 }
+
+func TestInstallSuperpowersDefaultFalseAndEnvOverride(t *testing.T) {
+	t.Setenv("CELL_INSTALL_SUPERPOWERS", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.InstallSuperpowers {
+		t.Fatal("InstallSuperpowers must default to false")
+	}
+	t.Setenv("CELL_INSTALL_SUPERPOWERS", "true")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.InstallSuperpowers {
+		t.Fatal("CELL_INSTALL_SUPERPOWERS=true must set InstallSuperpowers")
+	}
+}

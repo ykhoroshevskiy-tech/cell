@@ -112,13 +112,22 @@ setup_agent_home() {
     fi
   fi
   if [ ! -f "${CFG}" ]; then
-    cat > "${CFG}" <<'EOF'
+    if [ -d /opt/opencode-plugins/node_modules/superpowers ]; then
+      cat > "${CFG}" <<'EOF'
 {
   "$schema": "https://opencode.ai/config.json",
   "permission": "allow",
   "plugin": ["/opt/opencode-plugins/node_modules/superpowers"]
 }
 EOF
+    else
+      cat > "${CFG}" <<'EOF'
+{
+  "$schema": "https://opencode.ai/config.json",
+  "permission": "allow"
+}
+EOF
+    fi
   fi
   for dot in .zshrc .profile .bashrc; do
     if [ ! -e "${RW}/${dot}" ] && [ -e "${AGENT_HOME}/${dot}" ]; then
