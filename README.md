@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/ykhoroshevskiy-tech/cell/actions/workflows/ci.yml/badge.svg)](https://github.com/ykhoroshevskiy-tech/cell/actions/workflows/ci.yml)
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8?logo=go&logoColor=white)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)]
 
 Run a coding agent inside a Firecracker microVM — not on your host.
 
@@ -198,4 +198,4 @@ Legacy sessions (pre-bridge network records) are not migrated. Remove them with 
 
 ## License
 
-[MIT](LICENSE) © Yuri Khoroshevskiy
+MIT © Yuri Khoroshevskiy
