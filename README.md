@@ -1,8 +1,27 @@
 # cell
 
+[![CI](https://github.com/ykhoroshevskiy-tech/cell/actions/workflows/ci.yml/badge.svg)](https://github.com/ykhoroshevskiy-tech/cell/actions/workflows/ci.yml)
+![Go](https://img.shields.io/badge/go-1.26-00ADD8?logo=go&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Run a coding agent inside a Firecracker microVM — not on your host.
 
 AI coding agents need shell access, package installs, and freedom to change files. On the host that means a large blast radius. `cell` boots a lightweight KVM microVM, puts your repo inside it, and keeps the agent’s filesystem, processes, and network away from your machine — while syncing useful work back.
+
+```
+ ┌──────────────────────────── host ────────────────────────────┐
+ │                                                              │
+ │  sudo cell launch ───▶ firecracker ───▶ microVM              │
+ │       │                                       │              │
+ │       │                    ┌──────────────────┴────────────┐ │
+ │   opencode TUI ◀─ssh -L─── │ kernel + rootfs (ro)          │ │
+ │        (your clipboard)    │ /project: your repo (rw)      │ │
+ │        ▲                   │ opencode serve :4096          │ │
+ │        │  auto-pull rsync  │ node/uv/python installed      │ │
+ │        ▼                   └───────────────┬───────────────┘ │
+ │   host repo ◀──────────────────────────── cell0 bridge + NAT  │
+ └──────────────────────────────────────────────────────────────┘
+```
 
 ## Why cell
 
@@ -21,6 +40,30 @@ AI coding agents need shell access, package installs, and freedom to change file
 The OpenCode TUI runs on your host (clipboard works locally, not over SSH). Exiting the TUI leaves the VM running; use `sudo cell stop` to shut it down. After a host reboot, `sudo cell start --session <id>` boots the existing disk again.
 
 You keep working as if the agent is local; the risky part stays in the VM.
+
+## Demo
+
+```sh
+$ sudo cell launch --repo ~/projects/cell
+✓ kernel cached (42.6 MiB)   ✓ firecracker cached (7.1 MiB)
+✓ rootfs cached (4.0 GiB)    project disk 3072 MiB
+session 5f2a9c1d3e07 ready at 172.16.107.2
+
+$ cell ps
+SESSION        STATE      GUEST_IP         REPO                      CREATED
+5f2a9c2d3e07   running    172.16.107.2     /home/user/projects/cell  2026-09-13T12:00:00Z
+
+$ cell __complete attach --session ''
+5f2a9c2d3e07	/home/user/projects/cell (running)
+:4
+
+$ sudo cell stop --all
+stopped 1 session(s)
+```
+
+Shell completions (`cell completion zsh`) and the oh-my-zsh plugin
+([`plugins/cell`](plugins/cell/README.md)) add short aliases — `ca`, `cl`, `cps`,
+`cstop` — with live session completion.
 
 ## Status
 
