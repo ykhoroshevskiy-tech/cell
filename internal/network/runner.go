@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ykhoroshevskiy-tech/cell/internal/privilege"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
 )
 
@@ -21,18 +20,11 @@ type execRunner struct{}
 
 func (execRunner) Run(name string, args ...string) ([]byte, error) {
 	cmd := exec.Command(name, args...)
-	if attr := privilege.AmbientSysProcAttr(); attr != nil {
-		cmd.SysProcAttr = attr
-	}
 	return cmd.CombinedOutput()
 }
 
 func (execRunner) Output(name string, args ...string) ([]byte, error) {
-	cmd := exec.Command(name, args...)
-	if attr := privilege.AmbientSysProcAttr(); attr != nil {
-		cmd.SysProcAttr = attr
-	}
-	return cmd.Output()
+	return exec.Command(name, args...).Output()
 }
 
 var defaultRunner Runner = execRunner{}

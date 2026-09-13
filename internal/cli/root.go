@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
@@ -8,6 +11,18 @@ import (
 
 var quiet bool
 var verboseFlag bool
+
+// readOnlyCommands only read world-readable session state and never touch
+// the network, disks, or VM processes; they run without root.
+var readOnlyCommands = map[string]struct{}{
+	"ps":               {},
+	"logs":             {},
+	"version":          {},
+	"help":             {},
+	"completion":       {},
+	"__complete":       {},
+	"__completeNoDesc": {},
+}
 
 func Execute() error {
 	cfg, err := config.Load()
@@ -23,8 +38,15 @@ func newRootCmd(cfg *config.CellConfig) *cobra.Command {
 		Short:         "Coding-agent microVM runtime manager",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			verbose.Verbose = verboseFlag
+			if _, ok := readOnlyCommands[cmd.Name()]; ok {
+				return nil
+			}
+			if os.Geteuid() == 0 {
+				return nil
+			}
+			return fmt.Errorf("cell: %s requires root — run: sudo cell %s", cmd.Name(), cmd.Name())
 		},
 	}
 	root.PersistentFlags().BoolVar(&quiet, "quiet", false, "Suppress non-error output")

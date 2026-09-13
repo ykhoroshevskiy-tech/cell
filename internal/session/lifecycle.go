@@ -142,17 +142,6 @@ func newSessionID() (string, error) {
 	return hex.EncodeToString(b), nil
 }
 
-// checkKvmAccess fails fast with an actionable message when firecracker would
-// be unable to open /dev/kvm (it runs as the invoking user, not root).
-func checkKvmAccess() error {
-	f, err := os.OpenFile("/dev/kvm", os.O_RDWR, 0)
-	if err == nil {
-		_ = f.Close()
-		return nil
-	}
-	return fmt.Errorf("cannot open /dev/kvm: %w (join the kvm group — re-run: cell bootstrap — then re-login)", err)
-}
-
 func (sm *SessionManager) stageRepo(session *models.SessionRecord) error {
 	if err := stage.StageRepository(session.RepoSource, session.StagedRepoDir, sm.cfg.IncludeGit, sm.cfg.ExcludePatterns); err != nil {
 		session.State = models.StateFailed
@@ -230,9 +219,6 @@ func (sm *SessionManager) buildDisk(session *models.SessionRecord) error {
 }
 
 func (sm *SessionManager) startVM(ctx context.Context, session *models.SessionRecord) error {
-	if err := checkKvmAccess(); err != nil {
-		return err
-	}
 	if ssh.VMRunningForSession(session) {
 		return fmt.Errorf("VM already running for session %s", session.SessionID)
 	}

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"syscall"
 
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 )
@@ -14,16 +13,11 @@ func cmdlineMatchesFirecracker(data []byte, socketPath string) bool {
 	return strings.Contains(cmdline, "firecracker") && strings.Contains(cmdline, socketPath)
 }
 
-// VerifyFirecracker checks PID liveness and /proc cmdline against the session API socket.
+// VerifyFirecracker checks /proc/<pid>/cmdline (world-readable, even for
+// root-owned processes) against the session API socket, so liveness stays
+// truthful when run without root.
 func VerifyFirecracker(pid int, socketPath string) bool {
 	if pid <= 0 || socketPath == "" {
-		return false
-	}
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	if proc.Signal(syscall.Signal(0)) != nil {
 		return false
 	}
 	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))

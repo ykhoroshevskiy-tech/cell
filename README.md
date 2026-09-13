@@ -18,7 +18,7 @@ AI coding agents need shell access, package installs, and freedom to change file
 4. **Attach** — host runs `opencode attach` over an SSH `-L` tunnel to the guest server
 5. **Sync** — `cell pull` or auto-pull while attached syncs guest workspace changes back to the host repo (skips `.filter`). `--repo` is stored as an absolute path; pull dest must be absolute. Optional `--config` is copied to `.filter/opencode.json` and loaded as the guest agent config (`~/.config/opencode/opencode.json`); it is not stored in `session.json` and is skipped by pull.
 
-The OpenCode TUI runs on your host (clipboard works locally, not over SSH). Exiting the TUI leaves the VM running; use `cell stop` to shut it down. After a host reboot, `cell start --session <id>` boots the existing disk again.
+The OpenCode TUI runs on your host (clipboard works locally, not over SSH). Exiting the TUI leaves the VM running; use `sudo cell stop` to shut it down. After a host reboot, `sudo cell start --session <id>` boots the existing disk again.
 
 You keep working as if the agent is local; the risky part stays in the VM.
 
@@ -28,24 +28,24 @@ Early / experimental.
 
 **Tested so far only with [OpenCode](https://github.com/sst/opencode)** as the in-guest coding agent. Other agents may work later; they are not validated yet.
 
-Requires Linux with KVM. `bootstrap` and `rescue` re-exec themselves under `sudo` automatically (root is still required under the hood). Runtime commands run without sudo for users in the `cell` group; `bootstrap` also adds the user to the `kvm` group when `/dev/kvm` exists. `version` and `help` do not require privileges.
+Requires Linux with KVM. Mutating commands (`bootstrap`, `launch`, `start`, `stop`, `rm`, `attach`, `ssh`, `pull`, `status`, `verify`, `rescue`) must run as root: run them with `sudo`; without root they fail with `cell: <cmd> requires root — run: sudo cell <cmd>`. Read-only commands (`ps`, `logs`, `version`, `help`) work without root.
 
 ## Requirements
 
-- Linux with KVM (`/dev/kvm`); user in the `kvm` group (`bootstrap` adds you automatically)
-- Sudo rights for `cell bootstrap` and `cell rescue` (they re-exec under sudo; no need to type sudo)
+- Linux with KVM (`/dev/kvm`)
+- Root (`sudo`) for all mutating commands; `cell ps` and `cell logs` work without root
 - Go 1.26+ to build
-- Host tools: `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`, `debootstrap`, `setcap` (libcap2-bin), [OpenCode](https://github.com/sst/opencode) (`opencode` on PATH)
+- Host tools: `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`, `debootstrap`, [OpenCode](https://github.com/sst/opencode) (`opencode` on PATH)
 
 ## Build & install
 
 ```sh
 go build -o cell ./cmd/cell
 sudo install -m 755 cell /usr/bin/cell
-cell bootstrap   # auto-elevates via sudo; cell+kvm groups, setcap on /usr/bin/cell (0750 root:cell), shared /var/lib/cell
+sudo cell bootstrap   # downloads/builds kernel, rootfs, firecracker into /var/lib/cell
 ```
 
-After bootstrap, re-login (or `newgrp cell`) so group membership applies. Bootstrap adds `$SUDO_USER` to the `cell` and `kvm` groups when run via sudo; otherwise it prints the `usermod` command. Sessions created by an earlier sudo-based `cell launch` (root-owned files) are handed to the `cell` group by the next `cell bootstrap`; a VM still running as root needs one `sudo cell stop` to retire. Re-running `sudo install` strips capabilities — run `cell bootstrap` again after reinstall.
+Re-run `sudo cell bootstrap` after reinstalling the binary.
 
 Optional network smoke test (KVM, prior bootstrap):
 
@@ -56,14 +56,14 @@ sudo scripts/e2e-network.sh ./cell
 ## Quick start
 
 ```sh
-cell bootstrap
-cell launch --repo /path/to/your/repo
-cell launch --repo /path/to/your/repo --config /path/to/opencode.json   # optional
+sudo cell bootstrap
+sudo cell launch --repo /path/to/your/repo
+sudo cell launch --repo /path/to/your/repo --config /path/to/opencode.json   # optional
 
 cell ps
-cell attach --session <session-id>
-cell pull --session <session-id>
-cell stop --session <session-id>
+sudo cell attach --session <session-id>
+sudo cell pull --session <session-id>
+sudo cell stop --session <session-id>
 ```
 
 ## Commands
@@ -82,7 +82,7 @@ cell stop --session <session-id>
 | `logs`      | Print serial.log                              |
 | `ps`        | List sessions                                 |
 | `pull`      | Rsync guest workspace back to host repo       |
-| `rescue`    | Extract workspace from project disk (auto-elevates via sudo) |
+| `rescue`    | Extract workspace from project disk (needs sudo) |
 | `version`   | Print version                                 |
 
 Global flags: `--quiet`, `--verbose` (`-v`).
@@ -142,7 +142,7 @@ All sessions share one Linux bridge (`cell0`, `172.16.107.1/24`). Each session g
 
 Before `launch`, `start`, `stop`, and `rm`, cell reconciles bridge/TAP/firewall state under `/run/lock/cell-network.lock`. Stopped sessions keep their IP lease until removed.
 
-Legacy sessions (pre-bridge network records) are not migrated. Remove them with `cell rm --session <id> --legacy` (old records), then launch again.
+Legacy sessions (pre-bridge network records) are not migrated. Remove them with `sudo cell rm --session <id> --legacy`, then launch again.
 
 After building, `sudo scripts/e2e-network.sh ./cell` smoke-tests two VMs (distinct IPs, guest isolation, stale TAP cleanup, lease reuse). Host reboot recovery (`cell start`) is not automated in that script.
 
