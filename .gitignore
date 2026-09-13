@@ -3,6 +3,6 @@
 .cursor/
 .superpowers/
 lost+found/
-cell
-cell.exe
+/cell
+/cell.exe
 *.vsix
