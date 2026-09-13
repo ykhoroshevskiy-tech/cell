@@ -421,6 +421,43 @@ func (sm *SessionManager) List(ctx context.Context, runningOnly bool) ([]*models
 	return list, nil
 }
 
+// SessionSummary is a cheap per-session view used by shell completion.
+type SessionSummary struct {
+	SessionID  string
+	RepoSource string
+	State      string
+	VMRunning  bool
+}
+
+// ListSummaries reads session.json files without probing SSH or the opencode
+// server, so it stays fast enough for shell completion.
+func (sm *SessionManager) ListSummaries() ([]SessionSummary, error) {
+	entries, err := os.ReadDir(sm.cfg.SessionDataDir)
+	if os.IsNotExist(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var list []SessionSummary
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		session, err := sm.loadSession(entry.Name())
+		if err != nil {
+			continue
+		}
+		list = append(list, SessionSummary{
+			SessionID:  session.SessionID,
+			RepoSource: session.RepoSource,
+			State:      string(session.State),
+			VMRunning:  ssh.VMRunningForSession(session),
+		})
+	}
+	return list, nil
+}
+
 func (sm *SessionManager) Rescue(ctx context.Context, sessionID, destPath string) error {
 	_ = ctx
 	session, err := sm.loadSession(sessionID)
