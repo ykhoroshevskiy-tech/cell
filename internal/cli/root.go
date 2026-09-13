@@ -66,8 +66,38 @@ func newRootCmd(cfg *config.CellConfig) *cobra.Command {
 	root.AddCommand(newPullCmd(cfg))
 	root.AddCommand(newRescueCmd(cfg))
 	root.AddCommand(newRmCmd(cfg))
+	root.AddCommand(newCompletionCmd())
 	root.AddCommand(newVersionCmd())
 	return root
+}
+
+func newCompletionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "completion [bash|zsh|fish|powershell]",
+		Short: "Generate shell completion script",
+		Long: `Generate shell completion script.
+
+Load completions in the current shell (zsh):
+  source <(cell completion zsh)
+
+Install permanently (zsh):
+  cell completion zsh > "${fpath[1]}/_cell"`,
+		Args:      cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
+		ValidArgs: []string{"bash", "zsh", "fish", "powershell"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			switch args[0] {
+			case "bash":
+				return cmd.Root().GenBashCompletionV2(cmd.OutOrStdout(), true)
+			case "zsh":
+				return cmd.Root().GenZshCompletion(cmd.OutOrStdout())
+			case "fish":
+				return cmd.Root().GenFishCompletion(cmd.OutOrStdout(), true)
+			case "powershell":
+				return cmd.Root().GenPowerShellCompletionWithDesc(cmd.OutOrStdout())
+			}
+			return nil
+		},
+	}
 }
 
 func newVersionCmd() *cobra.Command {

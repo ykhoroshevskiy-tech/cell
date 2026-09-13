@@ -11,7 +11,7 @@ import (
 )
 
 func newPsCmd(cfg *config.CellConfig) *cobra.Command {
-	var all, asJSON bool
+	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "ps",
 		Short: "List sessions",
@@ -20,7 +20,7 @@ func newPsCmd(cfg *config.CellConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			list, err := sm.List(cmd.Context(), !all)
+			list, err := sm.List(cmd.Context(), false)
 			if err != nil {
 				return err
 			}
@@ -46,7 +46,6 @@ func newPsCmd(cfg *config.CellConfig) *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&all, "all", false, "List all valid sessions")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "JSON output")
 	return cmd
 }
