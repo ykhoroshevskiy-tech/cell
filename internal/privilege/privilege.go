@@ -9,11 +9,34 @@ import (
 
 const CellGroupName = "cell"
 
-// InCellGroup reports whether the current user is in the cell group.
+// InCellGroup reports whether the process credentials carry the cell group —
+// what group file permissions are actually checked against.
 func InCellGroup() bool {
 	if os.Geteuid() == 0 {
 		return true
 	}
+	gid, err := CellGroupGID()
+	if err != nil {
+		return false
+	}
+	if os.Getgid() == gid {
+		return true
+	}
+	gids, err := os.Getgroups()
+	if err != nil {
+		return false
+	}
+	for _, g := range gids {
+		if g == gid {
+			return true
+		}
+	}
+	return false
+}
+
+// cellGroupFileMember reports /etc/group membership, which applies only after
+// the credentials are refreshed by re-login or newgrp.
+func cellGroupFileMember() bool {
 	u, err := user.Current()
 	if err != nil {
 		return false
@@ -32,6 +55,12 @@ func InCellGroup() bool {
 		}
 	}
 	return false
+}
+
+// CellGroupPending reports cell group membership recorded in /etc/group that
+// the current process credentials do not carry yet.
+func CellGroupPending() bool {
+	return cellGroupFileMember() && !InCellGroup()
 }
 
 // CellGroupGID returns the numeric gid of the cell group.
@@ -68,7 +97,10 @@ func RequireRuntimeAccess() error {
 	if InCellGroup() {
 		return nil
 	}
-	return fmt.Errorf("cell: runtime requires group '%s' — run: sudo cell bootstrap", CellGroupName)
+	if CellGroupPending() {
+		return fmt.Errorf("cell: %s group updated by bootstrap — re-login (or newgrp %s) to apply it", CellGroupName, CellGroupName)
+	}
+	return fmt.Errorf("cell: runtime requires the %s group — run: cell bootstrap", CellGroupName)
 }
 
 // RequireBootstrapRoot returns an error when bootstrap is not run as root.
