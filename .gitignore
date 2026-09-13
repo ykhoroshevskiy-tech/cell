@@ -1,0 +1,8 @@
+.filter/
+.filter-staged
+.cursor/
+.superpowers/
+lost+found/
+cell
+cell.exe
+*.vsix

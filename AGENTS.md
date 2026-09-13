@@ -41,5 +41,8 @@
 - Privilege model: mutating commands require root with the explicit error
   `cell: <cmd> requires root — run: sudo cell <cmd>`; read-only commands
   (`ps`, `logs`, `version`, `help`, `completion`, `__complete`) run without root.
-- `docs/` files are untracked by default; only commit docs with `git add -f` when the
-  spec demands it (feature specs usually stay untracked, as-built master spec too).
+- `docs/superpowers/` is tracked: feature specs are committed together with
+  their feature (or in a dedicated docs commit); the master `spec.md` is
+  reconciled to the code whenever behavior lands.
+- Never commit runtime secrets or artifacts: `.filter/`, the `cell` binary,
+  guest images and session data are gitignored.
