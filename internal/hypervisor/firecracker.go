@@ -11,7 +11,6 @@ import (
 
 	"github.com/ykhoroshevskiy-tech/cell/internal/firecracker"
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
-	"github.com/ykhoroshevskiy-tech/cell/internal/privilege"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
 )
 
@@ -32,9 +31,6 @@ func (f *FirecrackerHypervisor) Start(ctx context.Context, cfg *models.VmConfigD
 
 	// Long-lived: plain Command, NOT CommandContext — a cancelled parent ctx would SIGKILL FC.
 	cmd := exec.Command(f.BinPath, "--api-sock", socketPath)
-	if attr := privilege.AmbientSysProcAttr(); attr != nil {
-		cmd.SysProcAttr = attr
-	}
 	stdin, err := os.Open(os.DevNull)
 	if err != nil {
 		logFile.Close()

@@ -162,9 +162,6 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		return err
 	}
 	if needsRootfs {
-		if os.Geteuid() != 0 {
-			return fmt.Errorf("rootfs needs a rebuild — run: cell bootstrap")
-		}
 		fmt.Println("Building rootfs via debootstrap noble…")
 		if err := buildRootfs(cfg, rootfsSizeMB(cfg)); err != nil {
 			return err
@@ -189,16 +186,8 @@ func ensureAuthorizedKeys(cfg *config.CellConfig, dir string) error {
 		}
 		return os.WriteFile(path, []byte(strings.TrimSpace(cfg.SSHPublicKey)+"\n"), 0600)
 	}
-	// An existing non-empty authorized_keys is done; a non-root launch cannot
-	// read or rewrite bootstrap-owned (root 0600) files, and cell bootstrap
-	// refreshes them.
-	if st, err := os.Stat(path); err == nil && st.Size() > 0 {
+	if data, err := os.ReadFile(path); err == nil && len(strings.TrimSpace(string(data))) > 0 {
 		return nil
-	}
-	// authorized_keys missing: rebuild it from the existing public key so the
-	// root-owned private key is never opened by a non-root launch.
-	if pub, err := os.ReadFile(filepath.Join(dir, "id_ed25519.pub")); err == nil && len(strings.TrimSpace(string(pub))) > 0 {
-		return os.WriteFile(path, pub, 0600)
 	}
 	kp, err := ssh.WriteKeyPair(dir)
 	if err != nil {
