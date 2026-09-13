@@ -52,9 +52,7 @@ _cell_aliases_args() {
       ;;
     cstop)
       if (( CURRENT == 2 )); then
-        _alternative \
-          'sessions:session ids:_cell_aliases_sessionIds' \
-          'flags:flag:(--all)'
+        _cell_aliases_sessionIds
       fi
       ;;
     cl)
@@ -77,8 +75,8 @@ alias cl='sudo cell launch --repo'
 alias cs='sudo cell start --session'
 # list sessions (no sudo needed)
 alias cps='cell ps'
-# stop one VM: cstop <TAB>, or all:  cstop --all
-alias cstop='sudo cell stop'
+# stop one VM: cstop <TAB> <id>   (cstopall covers --all)
+alias cstop='sudo cell stop --session'
 # remove a stopped session
 alias crm='sudo cell rm --session'
 # debug SSH + tmux in the guest
@@ -98,7 +96,7 @@ alias cboot='sudo cell bootstrap'
 # reconcile bridge/TAP/firewall state
 alias cnet='sudo cell net-setup'
 alias cver='cell version'
-alias cstopall='sudo cell stop --all'
+alias cstopall='sudo cell stop --all'   # cstop bakes --session; --all lives here
 
 if (( $+functions[compdef] )); then
   compdef _cell_aliases_args ca cl cs cstop crm cssh cstat cverify clogs cpull crescue
