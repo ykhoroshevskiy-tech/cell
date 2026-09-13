@@ -34,8 +34,11 @@ func TestRequireRuntimeAccess(t *testing.T) {
 	os.Args = []string{"cell", "ps"}
 	t.Cleanup(func() { os.Args = old })
 	err := privilege.RequireRuntimeAccess()
-	if err == nil || !strings.Contains(err.Error(), "runtime requires group") {
+	if err == nil || !strings.Contains(err.Error(), "runtime requires") {
 		t.Fatalf("err=%v", err)
+	}
+	if strings.Contains(err.Error(), "sudo") {
+		t.Fatal("runtime gate must not mention sudo")
 	}
 }
 
