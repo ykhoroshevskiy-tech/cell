@@ -68,6 +68,7 @@ func newRootCmd(cfg *config.CellConfig) *cobra.Command {
 	root.AddCommand(newRmCmd(cfg))
 	root.AddCommand(newCompletionCmd())
 	root.AddCommand(newVersionCmd())
+	registerSessionCompletionAll(root, cfg)
 	return root
 }
 
