@@ -32,19 +32,26 @@ func (sm *SessionManager) loadAllSessions() ([]*models.SessionRecord, error) {
 	return sessions, nil
 }
 
+// repairStaleRecord sanitizes a single record: a dead Firecracker pid zeroes
+// the pid and demotes a stale `running` State to `stopped`, persisting only
+// when the record actually changed. Cheap: ssh.VerifyFirecracker short-circuits.
+func (sm *SessionManager) repairStaleRecord(session *models.SessionRecord) error {
+	if session.FCPid <= 0 {
+		return nil
+	}
+	if ssh.VerifyFirecracker(session.FCPid, session.SocketPath) {
+		return nil
+	}
+	session.FCPid = 0
+	if session.State == models.StateRunning {
+		session.State = models.StateStopped
+	}
+	return sm.saveSession(session)
+}
+
 func (sm *SessionManager) repairStaleSessions(sessions []*models.SessionRecord) error {
 	for _, session := range sessions {
-		if session.FCPid <= 0 {
-			continue
-		}
-		if ssh.VerifyFirecracker(session.FCPid, session.SocketPath) {
-			continue
-		}
-		session.FCPid = 0
-		if session.State == models.StateRunning {
-			session.State = models.StateStopped
-		}
-		if err := sm.saveSession(session); err != nil {
+		if err := sm.repairStaleRecord(session); err != nil {
 			return err
 		}
 	}

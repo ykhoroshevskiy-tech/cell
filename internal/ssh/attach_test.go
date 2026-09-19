@@ -1,7 +1,10 @@
 package ssh_test
 
 import (
+	"errors"
+	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -110,10 +113,13 @@ func TestWaitTunnelForwardReady(t *testing.T) {
 		t.Fatal(err)
 	}
 	port := ln.Addr().(*net.TCPAddr).Port
-	if err := ssh.WaitTunnelForwardReadyForTest(port, nil, 2*time.Second); err != nil {
+	if err := ssh.WaitTunnelForwardReadyForTest(port, nil, 2*time.Second, nil); err != nil {
 		t.Fatalf("ready listener: %v", err)
 	}
 	_ = ln.Close()
+
+	tail := ssh.NewStderrTail()
+	_, _ = tail.Write([]byte("Connection refused\n"))
 
 	dead := exec.Command("true")
 	if err := dead.Start(); err != nil {
@@ -122,16 +128,73 @@ func TestWaitTunnelForwardReady(t *testing.T) {
 	if err := dead.Wait(); err != nil {
 		t.Fatal(err)
 	}
-	if err := ssh.WaitTunnelForwardReadyForTest(59999, dead.Process, time.Second); err == nil {
+	if err := ssh.WaitTunnelForwardReadyForTest(59999, dead.Process, time.Second, tail); err == nil {
 		t.Fatal("expected error when tunnel exited")
-	} else if err.Error() != "ssh tunnel exited before forward ready" {
-		t.Fatalf("exit err=%q", err)
+	} else if got := err.Error(); got != "ssh tunnel exited before forward ready; ssh tunnel stderr (tail): Connection refused" {
+		t.Fatalf("exit err=%q", got)
 	}
 
-	if err := ssh.WaitTunnelForwardReadyForTest(59999, nil, 500*time.Millisecond); err == nil {
+	if err := ssh.WaitTunnelForwardReadyForTest(59999, nil, 500*time.Millisecond, tail); err == nil {
 		t.Fatal("expected timeout error")
-	} else if err.Error() != "ssh tunnel forward not ready" {
-		t.Fatalf("timeout err=%q", err)
+	} else if got := err.Error(); got != "ssh tunnel forward not ready; ssh tunnel stderr (tail): Connection refused" {
+		t.Fatalf("timeout err=%q", got)
+	}
+}
+
+// A tunnel that emits stderr then dies: the attach failure must explain itself
+// with the captured stderr tail lines (root cause visible, fake process).
+func TestTunnelFailureCarriesStderrTail(t *testing.T) {
+	tail := ssh.NewStderrTail()
+	proc := exec.Command("/bin/sh", "-c", "echo 'Permission denied (publickey)' >&2; exit 0")
+	proc.Stderr = tail
+	if err := proc.Start(); err != nil {
+		t.Fatal(err)
+	}
+	_ = proc.Wait()
+
+	err := ssh.WaitTunnelForwardReadyForTest(59999, proc.Process, 300*time.Millisecond, tail)
+	if err == nil {
+		t.Fatal("expected failure")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "ssh tunnel exited before forward ready") {
+		t.Fatalf("missing base error: %q", msg)
+	}
+	if !strings.Contains(msg, "ssh tunnel stderr (tail):") || !strings.Contains(msg, "Permission denied (publickey)") {
+		t.Fatalf("missing stderr tail: %q", msg)
+	}
+}
+
+func TestTunnelFailureRootCauseWording(t *testing.T) {
+	tail := ssh.NewStderrTail()
+	_, _ = tail.Write([]byte("boom\n"))
+
+	// Dead VM: guidance to `cell start`, not a tunnel complaint.
+	dead := &models.SessionRecord{SessionID: "abc123", FCPid: 0, State: "stopped"}
+	err := ssh.TunnelFailureErrorForTest(dead, errors.New("ssh tunnel forward not ready"), tail)
+	if err == nil || err.Error() != "VM not running while attaching; cell start --session abc123" {
+		t.Fatalf("dead VM err=%v", err)
+	}
+
+	// VM alive per Firecracker identity: surface the tunnel wait error.
+	live := &models.SessionRecord{SessionID: "abc123"}
+	live.SocketPath = "empty.socket"
+	proc := exec.Command("/bin/sh", "-c", "sleep 2", "firecracker", "--api-sock", live.SocketPath)
+	if err := proc.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = proc.Process.Kill(); _, _ = proc.Process.Wait() }()
+	live.FCPid = proc.Process.Pid
+	for range 50 {
+		if data, rerr := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", live.FCPid)); rerr == nil && len(data) > 0 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	err = ssh.TunnelFailureErrorForTest(live, errors.New("ssh tunnel forward not ready"), tail)
+	if err == nil || !strings.Contains(err.Error(), "attach failed: ssh tunnel forward not ready") {
+		t.Fatalf("live VM err=%v", err)
 	}
 }
 
