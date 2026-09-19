@@ -79,7 +79,6 @@ func EnsureFirewall() error {
 	if err := run("iptables", "-A", chainForward, "-s", subnet, "-d", subnet, "-j", "DROP"); err != nil {
 		return err
 	}
-	// ponytail: bridge L3 rules only; nftables anti-spoof on cell0 when guests get CAP_NET_ADMIN
 	if err := run("iptables", "-A", chainForward, "-s", subnet, "-j", "ACCEPT"); err != nil {
 		return err
 	}

@@ -21,7 +21,6 @@ func openLockFile() (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(networkLockPath), 0755); err != nil {
 		return nil, fmt.Errorf("ensure lock dir: %w", err)
 	}
-	// ponytail: sticky /run/lock + fs.protected_regular rejects O_CREAT on a file we don't own, even as root
 	f, err := os.OpenFile(networkLockPath, os.O_RDWR, 0644)
 	if err == nil {
 		return f, nil

@@ -287,7 +287,6 @@ else
   log "runtime degraded: ssh only (tmux failed)"
 fi
 # PID 1: stay alive (sshd/tmux children daemonize; block on long-lived sleeper, no wait spin)
-# ponytail: single blocking wait on sleep child; upgrade path: SIGCHLD trap for reaping
 # region agent log
 debug_log "idle-block entering"
 # endregion

@@ -20,7 +20,6 @@ func EnsureBridge() error {
 	if err := run("ip", "link", "set", models.BridgeName, "up"); err != nil {
 		return fmt.Errorf("bridge up: %w", err)
 	}
-	// ponytail: single connected route for the subnet; upgrade path is explicit route table mgmt
 	_ = run("ip", "route", "replace", fmt.Sprintf("%s/%d", trimHost(models.BridgeHostIP), models.BridgeCIDR), "dev", models.BridgeName)
 	return nil
 }
