@@ -37,5 +37,6 @@ exec zsh
 
 Tab after any session-taking alias lists live sessions as
 `id — /repo/path (running|stopped)`; `cl <TAB>` completes directories for
-`--repo`; `cstop <TAB>` offers sessions and `--all`; `cl /repo <TAB>` offers
+`--repo`; `cstop <TAB>` offers session ids only (stop-all is `cstopall`);
+`cl /repo <TAB>` offers
 `--config`/`--no-attach`.
