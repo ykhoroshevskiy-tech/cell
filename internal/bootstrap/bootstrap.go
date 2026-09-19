@@ -11,6 +11,7 @@ import (
 
 	"github.com/ykhoroshevskiy-tech/cell/guestinit"
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
+	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 	"github.com/ykhoroshevskiy-tech/cell/internal/ssh"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
 )
@@ -57,7 +58,11 @@ func squashfsBuildStamp(cfg *config.CellConfig) string {
 	if cfg.InstallSuperpowers {
 		sp = "on"
 	}
-	return "debootstrap:noble+apt+node:" + node + "+uv:" + uv + "+py:" + py + "+sp:" + sp
+	agent := models.NormalizeAgentKind(cfg.CellAgent)
+	if agent == "" {
+		agent = models.AgentKindOpenCode
+	}
+	return "debootstrap:noble+apt+node:" + node + "+uv:" + uv + "+py:" + py + "+sp:" + sp + "+agent:" + agent
 }
 
 func needsRootfsRebuild(rootfsPath, expectedStamp string, rebuildRequested bool) (bool, error) {
@@ -336,8 +341,12 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 		return fmt.Errorf("chroot customize: %w", err)
 	}
 
-	if strings.TrimSpace(cfg.AgentURL) == "" {
-		fmt.Println("agent install skipped (CELL_AGENT_URL empty)")
+	agentKind := models.NormalizeAgentKind(cfg.CellAgent)
+	if agentKind == "" {
+		agentKind = models.AgentKindOpenCode
+	}
+	if agentKind == models.AgentKindNone || strings.TrimSpace(cfg.AgentURL) == "" {
+		fmt.Println("agent install skipped")
 	} else {
 		fmt.Printf("installing agent %q (host download)…\n", cfg.AgentBin)
 		if err := installAgentHostSide(root, imagesDir, cfg.AgentURL, cfg.AgentBin); err != nil {
@@ -423,9 +432,9 @@ func installAgentHostSide(root, imagesDir, urlTemplate, binName string) error {
 		_ = os.Remove(cache) // corrupt cache → refetch next time
 		return fmt.Errorf("extract agent: %w", err)
 	}
-	src := filepath.Join(tmp, binName)
-	if st, err := os.Stat(src); err != nil || st.IsDir() {
-		return fmt.Errorf("agent binary %q missing in tarball", binName)
+	src, err := findAgentBinary(tmp, binName)
+	if err != nil {
+		return err
 	}
 	binDir := filepath.Join(root, "opt", "agent", "bin")
 	if err := os.MkdirAll(binDir, 0755); err != nil {
@@ -445,6 +454,32 @@ func installAgentHostSide(root, imagesDir, urlTemplate, binName string) error {
 	}
 	fmt.Printf("  agent %q installed\n", binName)
 	return nil
+}
+
+// findAgentBinary locates the agent binary inside an extracted tarball.
+// Opencode tarballs carry the binary at the tarball root; npm tarballs
+// (e.g. @anthropic-ai/claude-code) extract under a "package/" prefix.
+func findAgentBinary(tmpDir, binName string) (string, error) {
+	for _, rel := range []string{binName, filepath.Join("package", binName)} {
+		src := filepath.Join(tmpDir, rel)
+		if st, err := os.Stat(src); err == nil && !st.IsDir() {
+			return src, nil
+		}
+	}
+	var found string
+	_ = filepath.Walk(tmpDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() || found != "" {
+			return nil
+		}
+		if filepath.Base(path) == binName {
+			found = path
+		}
+		return nil
+	})
+	if found == "" {
+		return "", fmt.Errorf("agent binary %q missing in tarball", binName)
+	}
+	return found, nil
 }
 
 // curlDownloadRetry fetches url into dst via curl (atomic rename), up to attempts times.

@@ -33,11 +33,16 @@ func NewSessionManager(cfg *config.CellConfig) (*SessionManager, error) {
 	return &SessionManager{cfg: cfg, hypervisor: hv}, nil
 }
 
-func (sm *SessionManager) Launch(ctx context.Context, repoPath, agentConfigPath string, attach bool) (*models.SessionRecord, error) {
+func (sm *SessionManager) Launch(ctx context.Context, repoPath, agentConfigPath string, attach bool, agentKind string) (*models.SessionRecord, error) {
 	verbose.V("launch: preparing session for %s", repoPath)
 	session, err := sm.prepareSession(repoPath)
 	if err != nil {
 		return nil, err
+	}
+	if kind := models.NormalizeAgentKind(agentKind); kind == "" {
+		return nil, fmt.Errorf("invalid agent kind %q (want opencode|claude|none)", agentKind)
+	} else {
+		session.Agent = kind
 	}
 	session.AgentConfigPath = agentConfigPath
 	if _, err := WriteServerPassword(session.SessionDir); err != nil {
@@ -186,6 +191,9 @@ func (sm *SessionManager) buildDisk(session *models.SessionRecord) error {
 	if err := WriteServePortToDiskRoot(rootDir, sm.cfg.AgentServePort); err != nil {
 		return err
 	}
+	if err := WriteAgentKindToDiskRoot(rootDir, session.EffectiveAgent()); err != nil {
+		return err
+	}
 	if err := CopyAgentConfigToDiskRoot(session.AgentConfigPath, rootDir); err != nil {
 		return err
 	}
@@ -280,13 +288,31 @@ func (sm *SessionManager) waitReady(session *models.SessionRecord) error {
 }
 
 func (sm *SessionManager) attachTUI(session *models.SessionRecord) error {
-	pw, err := ReadServerPassword(session.SessionDir)
-	if err != nil {
-		return err
+	var err error
+	if attachDispatch(session.Agent) == "shell" {
+		// claude and none guests have no opencode serve mode: raw tmux shell over SSH.
+		verbose.V("attach: ssh shell path (agent=%s)", session.EffectiveAgent())
+		err = ssh.AttachShell(session, sm.cfg)
+	} else {
+		var pw string
+		pw, err = ReadServerPassword(session.SessionDir)
+		if err != nil {
+			return err
+		}
+		verbose.V("attach: tunnel TUI path (agent=opencode)")
+		err = ssh.AttachTUI(session, sm.cfg, pw)
 	}
-	err = ssh.AttachTUI(session, sm.cfg, pw)
 	_ = sm.saveSession(session) // persist HostForwardPort
 	return err
+}
+
+// attachDispatch selects the host attach mode for the session's agent kind:
+// "tui" for the opencode tunnel TUI, "shell" for claude/none (tmux over SSH).
+func attachDispatch(agent string) string {
+	if models.NormalizeAgentKind(agent) == models.AgentKindOpenCode {
+		return "tui"
+	}
+	return "shell"
 }
 
 func (sm *SessionManager) Stop(ctx context.Context, sessionID string) error {
@@ -410,6 +436,7 @@ func (sm *SessionManager) List(ctx context.Context, runningOnly bool) ([]*models
 			TapName:      st.TapName,
 			State:        session.State,
 			RepoSource:   session.RepoSource,
+			Agent:        session.EffectiveAgent(),
 			CreatedAt:    session.CreatedAt,
 		}
 		if runningOnly && !item.VMRunning {
