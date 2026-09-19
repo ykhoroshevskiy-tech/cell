@@ -1,6 +1,7 @@
 # cell
 
 [![CI](https://github.com/ykhoroshevskiy-tech/cell/actions/workflows/ci.yml/badge.svg)](https://github.com/ykhoroshevskiy-tech/cell/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/ykhoroshevskiy-tech/cell/graph/badge.svg)](https://codecov.io/gh/ykhoroshevskiy-tech/cell)
 ![Go](https://img.shields.io/badge/go-1.26-00ADD8?logo=go&logoColor=white)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
