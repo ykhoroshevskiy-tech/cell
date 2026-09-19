@@ -36,10 +36,6 @@ func sha256Matches(path, expected string) bool {
 	return got == expected
 }
 
-func Sha256MatchesForTest(path, expected string) bool {
-	return sha256Matches(path, expected)
-}
-
 func humanSize(n int64) string {
 	const unit = 1024
 	if n < unit {

@@ -113,10 +113,6 @@ func WaitForSSH(guestIP string, port int, timeout time.Duration) error {
 	return fmt.Errorf("SSH not reachable at %s within %v", addr, timeout)
 }
 
-func CheckFatalForTest(logText string) string {
-	return checkFatal(logText)
-}
-
 func checkFatal(logText string) string {
 	for _, fp := range fatalPatterns {
 		if fp.pattern.MatchString(logText) {
@@ -365,14 +361,6 @@ func tunnelFailureError(session *models.SessionRecord, waitErr error, tail *Stde
 		return fmt.Errorf("VM not running while attaching; cell start --session %s", session.SessionID)
 	}
 	return fmt.Errorf("attach failed: %w", waitErr)
-}
-
-func WaitTunnelForwardReadyForTest(hostPort int, proc *os.Process, timeout time.Duration, tail *StderrTail) error {
-	return waitTunnelForwardReady(hostPort, proc, timeout, tail)
-}
-
-func TunnelFailureErrorForTest(session *models.SessionRecord, waitErr error, tail *StderrTail) error {
-	return tunnelFailureError(session, waitErr, tail)
 }
 
 func AttachTUI(session *models.SessionRecord, cfg *config.CellConfig, password string) error {

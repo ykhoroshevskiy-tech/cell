@@ -45,7 +45,7 @@ func (f *FirecrackerHypervisor) Start(ctx context.Context, cfg *models.VmConfigD
 		_ = logFile.Close()
 		return 0, fmt.Errorf("start firecracker: %w", err)
 	}
-	// Keep stdin/logFile open for the child (Python keeps serial_log open).
+	// stdin/logFile stay open for the child's lifetime; FC holds serial_log.
 	// Reap in background when FC exits so we don't leave zombies forever.
 	go func() {
 		_ = cmd.Wait()

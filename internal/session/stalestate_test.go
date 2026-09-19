@@ -91,7 +91,7 @@ func TestStopAllRepairsAndCounts(t *testing.T) {
 	defer restoreLock()
 	restoreNet := network.SetNetSetupForTest(func() error { return nil })
 	defer restoreNet()
-	_ = network.SetRunnerForTest(network.NewFakeRunnerForTest())
+	_ = network.SetRunnerForTest(silentRunner{})
 
 	cfg := testConfig(t)
 	sm := &SessionManager{cfg: cfg, hypervisor: fakeHypervisor{}}

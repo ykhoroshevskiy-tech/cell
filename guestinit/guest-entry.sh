@@ -21,35 +21,35 @@ wait_disk() {
   exit 1
 }
 
- mount_project() {
-   wait_disk
-   if ! mountpoint -q "${MOUNT}"; then
-     mount "${PROJECT_DISK}" "${MOUNT}" || {
-       log "mount failed, trying mkfs"
-       mkfs.ext4 -F "${PROJECT_DISK}"
-       mount "${PROJECT_DISK}" "${MOUNT}"
-     }
-   fi
-   log "project mounted at ${MOUNT}"
-   if [ ! -f "${REPO_DIR}/.filter-staged" ]; then
-     log "ERROR: project marker missing in ${REPO_DIR}"
-     exit 1
-   fi
-   log "project marker ok"
-   AGENT_KIND="opencode"
-   KIND_FILE="${REPO_DIR}/.filter/agent.kind"
-   if [ -s "${KIND_FILE}" ]; then
-     AGENT_KIND="$(cat "${KIND_FILE}")"
-   fi
-   case "${AGENT_KIND}" in
-     opencode|claude|none) ;;
-     *)
-       AGENT_KIND="opencode"
-       log "unknown agent kind in ${KIND_FILE}; defaulting to opencode"
-       ;;
-   esac
-   log "agent kind: ${AGENT_KIND}"
- }
+mount_project() {
+  wait_disk
+  if ! mountpoint -q "${MOUNT}"; then
+    mount "${PROJECT_DISK}" "${MOUNT}" || {
+      log "mount failed, trying mkfs"
+      mkfs.ext4 -F "${PROJECT_DISK}"
+      mount "${PROJECT_DISK}" "${MOUNT}"
+    }
+  fi
+  log "project mounted at ${MOUNT}"
+  if [ ! -f "${REPO_DIR}/.filter-staged" ]; then
+    log "ERROR: project marker missing in ${REPO_DIR}"
+    exit 1
+  fi
+  log "project marker ok"
+  AGENT_KIND="opencode"
+  KIND_FILE="${REPO_DIR}/.filter/agent.kind"
+  if [ -s "${KIND_FILE}" ]; then
+    AGENT_KIND="$(cat "${KIND_FILE}")"
+  fi
+  case "${AGENT_KIND}" in
+    opencode|claude|none) ;;
+    *)
+      AGENT_KIND="opencode"
+      log "unknown agent kind in ${KIND_FILE}; defaulting to opencode"
+      ;;
+  esac
+  log "agent kind: ${AGENT_KIND}"
+}
 
 chown_repo() {
   chown -R "${AGENT_USER}:${AGENT_USER}" "${REPO_DIR}"
@@ -173,9 +173,8 @@ EOF
   log "agent home rw at ${AGENT_HOME} (${RW})"
 }
 
-# Rootfs is Firecracker RO; /usr/local lives there. Seed a project-disk copy and bind it
-# so the agent can install to /usr/local/bin (npm -g, etc.). Ceiling: copy is ~Node size;
-# upgrade: overlayfs if re-copy after rootfs Node bumps becomes painful.
+# Rootfs is read-only; /usr/local is bind-mounted from the project disk so
+# the agent can npm-install into /usr/local/bin. Seeded once from the rootfs.
 setup_usr_local_rw() {
   RW="${MOUNT}/.filter/usr-local"
   mkdir -p "${RW}"

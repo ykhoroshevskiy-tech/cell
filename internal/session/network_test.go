@@ -39,7 +39,7 @@ func TestRemoveFreesLease(t *testing.T) {
 	defer restoreLock()
 	restoreNet := network.SetNetSetupForTest(func() error { return nil })
 	defer restoreNet()
-	restore := network.SetRunnerForTest(network.NewFakeRunnerForTest())
+	restore := network.SetRunnerForTest(silentRunner{})
 	defer restore()
 
 	cfg := testConfig(t)
