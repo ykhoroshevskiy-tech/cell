@@ -309,7 +309,9 @@ func (sm *SessionManager) Stop(ctx context.Context, sessionID string) error {
 }
 
 func (sm *SessionManager) StopAll(ctx context.Context) (int, []error) {
-	list, err := sm.List(ctx, true)
+	// List repairs every record first, so stale "running" records whose VM
+	// died are demoted to stopped and never counted (they weren't running).
+	list, err := sm.List(ctx, false)
 	if err != nil {
 		return 0, []error{err}
 	}
@@ -332,6 +334,9 @@ func (sm *SessionManager) Attach(ctx context.Context, sessionID string) error {
 	_ = ctx
 	session, err := sm.loadSession(sessionID)
 	if err != nil {
+		return err
+	}
+	if err := sm.repairStaleRecord(session); err != nil {
 		return err
 	}
 	if !ssh.VMRunningForSession(session) {
@@ -378,6 +383,9 @@ func (sm *SessionManager) Status(ctx context.Context, sessionID string) (*models
 	if err != nil {
 		return nil, err
 	}
+	if err := sm.repairStaleRecord(session); err != nil {
+		return nil, err
+	}
 	return ssh.SessionStatus(session, sm.cfg), nil
 }
 
@@ -397,6 +405,9 @@ func (sm *SessionManager) List(ctx context.Context, runningOnly bool) ([]*models
 		}
 		session, err := sm.loadSession(entry.Name())
 		if err != nil {
+			continue
+		}
+		if err := sm.repairStaleRecord(session); err != nil {
 			continue
 		}
 		st := ssh.SessionStatus(session, sm.cfg)
