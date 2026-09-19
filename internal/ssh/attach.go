@@ -141,10 +141,17 @@ func WaitRuntimeReady(session *models.SessionRecord, cfg *config.CellConfig) err
 		}
 
 		status := SessionStatus(session, cfg)
-		if status.RuntimeReady && status.SSHReachable && status.ServerReady {
+		// Only the opencode tunnel-TUI path needs the opencode server probe;
+		// claude/none guests have no serve mode.
+		serverOK := status.ServerReady
+		if session.EffectiveAgent() != models.AgentKindOpenCode {
+			serverOK = true
+		}
+		if status.RuntimeReady && status.SSHReachable && serverOK {
 			return nil
 		}
 		verbose.V("wait: vm=%v ssh=%v runtime=%v server=%v (%v remaining)",
+			status.VMRunning, status.SSHReachable, status.RuntimeReady, status.ServerReady,
 			status.VMRunning, status.SSHReachable, status.RuntimeReady, status.ServerReady,
 			time.Until(deadline).Round(time.Second))
 		time.Sleep(200 * time.Millisecond)
@@ -184,7 +191,8 @@ func SessionStatus(session *models.SessionRecord, cfg *config.CellConfig) *model
 		}
 	}
 	st.RuntimeReady = RuntimeReady(session.SerialLogPath)
-	if st.SSHReachable {
+	// claude/none guests run no opencode server; don't probe them.
+	if st.SSHReachable && session.EffectiveAgent() == models.AgentKindOpenCode {
 		st.ServerReady = ServerReady(session, cfg)
 	}
 	return st

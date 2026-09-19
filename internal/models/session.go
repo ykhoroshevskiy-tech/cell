@@ -31,6 +31,9 @@ type SessionRecord struct {
 	HostForwardPort  int            `json:"host_forward_port,omitempty"`
 	Error            string         `json:"error,omitempty"`
 	AgentConfigPath  string         `json:"-"`
+	// Agent is the persisted agent kind ("opencode"|"claude"|"none").
+	// Empty means legacy session recorded before agent kinds existed → opencode.
+	Agent string `json:"agent,omitempty"`
 }
 
 func (s *SessionRecord) ArtifactPaths(sessionDataDir string) {
