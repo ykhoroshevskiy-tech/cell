@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
-	"github.com/ykhoroshevskiy-tech/cell/internal/version"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
+	"github.com/ykhoroshevskiy-tech/cell/internal/version"
 )
 
 var quiet bool

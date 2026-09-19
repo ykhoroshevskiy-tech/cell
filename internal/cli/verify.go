@@ -28,7 +28,7 @@ func newVerifyCmd(cfg *config.CellConfig) *cobra.Command {
 				return err
 			}
 			if st.RuntimeReady && st.SSHReachable && st.ServerReady {
-				fmt.Fprintf(cmd.OutOrStdout(), "ok: runtime=%v ssh=%v server=%v\n", st.RuntimeReady, st.SSHReachable, st.ServerReady)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ok: runtime=%v ssh=%v server=%v\n", st.RuntimeReady, st.SSHReachable, st.ServerReady)
 				return nil
 			}
 			logData, _ := sm.SerialLog(sessionID)

@@ -11,7 +11,7 @@ func ValidateKernel(path string) error {
 	if err != nil {
 		return fmt.Errorf("kernel missing: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	hdr := make([]byte, 4)
 	if _, err := io.ReadFull(f, hdr); err != nil {
 		return fmt.Errorf("read kernel header: %w", err)

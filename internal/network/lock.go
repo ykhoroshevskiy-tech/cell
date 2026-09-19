@@ -48,7 +48,7 @@ func WithNetworkLock(fn func() error) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	deadline := time.Now().Add(5 * time.Minute)
 	for {

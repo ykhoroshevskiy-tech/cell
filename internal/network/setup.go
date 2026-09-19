@@ -44,7 +44,7 @@ func PrepareNetworkLock() error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if err := os.Chmod(networkLockPath, 0664); err != nil {
 		return fmt.Errorf("chmod network lock: %w", err)
 	}

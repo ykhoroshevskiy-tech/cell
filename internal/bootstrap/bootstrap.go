@@ -222,7 +222,7 @@ func buildRootfs(cfg *config.CellConfig, sizeMB int) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(workDir)
+	defer func() { _ = os.RemoveAll(workDir) }()
 
 	root := filepath.Join(workDir, "root")
 	if err := os.MkdirAll(root, 0755); err != nil {
@@ -381,7 +381,6 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 	return nil
 }
 
-
 func agentDownloadTarget() (string, error) {
 	switch runtime.GOARCH {
 	case "amd64":
@@ -419,7 +418,7 @@ func installAgentHostSide(root, imagesDir, urlTemplate, binName string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmp)
+	defer func() { _ = os.RemoveAll(tmp) }()
 	if err := runCmd("tar", "-xzf", cache, "-C", tmp); err != nil {
 		_ = os.Remove(cache) // corrupt cache → refetch next time
 		return fmt.Errorf("extract agent: %w", err)
@@ -585,7 +584,7 @@ func installUvHostSide(root, imagesDir, version string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmp)
+	defer func() { _ = os.RemoveAll(tmp) }()
 	if err := runCmd("tar", "-xzf", cache, "-C", tmp); err != nil {
 		_ = os.Remove(cache)
 		return fmt.Errorf("extract uv: %w", err)
@@ -751,7 +750,7 @@ func extractFirecracker(tgzPath, dstBin string) error {
 	if err := os.MkdirAll(extractDir, 0755); err != nil {
 		return err
 	}
-	defer os.RemoveAll(extractDir)
+	defer func() { _ = os.RemoveAll(extractDir) }()
 
 	cmd := exec.Command("tar", "-xzf", tgzPath, "-C", extractDir)
 	if out, err := cmd.CombinedOutput(); err != nil {

@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
@@ -56,7 +55,7 @@ func (sm *SessionManager) Launch(ctx context.Context, repoPath, agentConfigPath 
 	if err := sm.startVM(ctx, session); err != nil {
 		return nil, err
 	}
-	verbose.V("launch: waiting for runtime ready (timeout %v)", sm.cfg.SSHReadyTimeoutSec)
+	verbose.V("launch: waiting for runtime ready (timeout %v)", sm.cfg.SSHReadyTimeout)
 	if err := sm.waitReady(session); err != nil {
 		return nil, err
 	}
@@ -158,7 +157,7 @@ func (sm *SessionManager) buildDisk(session *models.SessionRecord) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(rootDir)
+	defer func() { _ = os.RemoveAll(rootDir) }()
 
 	filterDir := filepath.Join(rootDir, ".filter")
 	if err := stage.StageRepository(session.StagedRepoDir, rootDir, true, nil); err != nil {
@@ -474,7 +473,7 @@ func (sm *SessionManager) Rescue(ctx context.Context, sessionID, destPath string
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(mntDir)
+	defer func() { _ = os.RemoveAll(mntDir) }()
 
 	mount := exec.Command("mount", "-t", "ext4", "-o", "loop,ro", session.ProjectDiskPath, mntDir)
 	if out, err := mount.CombinedOutput(); err != nil {
@@ -517,26 +516,4 @@ func (sm *SessionManager) SerialLog(sessionID string) ([]byte, error) {
 		return nil, err
 	}
 	return os.ReadFile(session.SerialLogPath)
-}
-func stopProcess(pid int) error {
-	if pid <= 0 {
-		return nil
-	}
-	proc, _ := os.FindProcess(pid)
-	if proc == nil {
-		return nil
-	}
-	_ = proc.Signal(syscall.SIGTERM)
-	done := make(chan struct{})
-	go func() {
-		_, _ = proc.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(10 * time.Second):
-		_ = proc.Kill()
-		<-done
-	}
-	return nil
 }

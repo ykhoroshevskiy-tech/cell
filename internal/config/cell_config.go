@@ -22,8 +22,8 @@ type CellConfig struct {
 	MemSizeMiB          int           `mapstructure:"mem_size_mib"`
 	ProjectDiskSizeMB   int           `mapstructure:"project_disk_size_mb"`
 	RootfsSizeMB        int           `mapstructure:"rootfs_size_mb"`
-	BootTimeoutSec      time.Duration `mapstructure:"boot_timeout_sec"`
-	SSHReadyTimeoutSec  time.Duration `mapstructure:"ssh_ready_timeout_sec"`
+	BootTimeout         time.Duration `mapstructure:"boot_timeout_sec"`
+	SSHReadyTimeout     time.Duration `mapstructure:"ssh_ready_timeout_sec"`
 	GuestProjectMount   string        `mapstructure:"guest_project_mount"`
 	GuestRepoDir        string        `mapstructure:"guest_repo_dir"`
 	GuestAttachScript   string        `mapstructure:"guest_attach_script"`
@@ -45,9 +45,9 @@ type CellConfig struct {
 	UvVersion           string        `mapstructure:"uv_version"`
 	PythonVersion       string        `mapstructure:"python_version"`
 	// Agent install/attach (vendor-neutral; defaults target OpenCode).
-	AgentURL string `mapstructure:"agent_url"` // empty = skip install; may contain {target}
-	AgentBin string `mapstructure:"agent_bin"` // binary name inside tarball and on PATH
-	AgentCmd string `mapstructure:"agent_cmd"` // command run in tmux on attach
+	AgentURL       string `mapstructure:"agent_url"` // empty = skip install; may contain {target}
+	AgentBin       string `mapstructure:"agent_bin"` // binary name inside tarball and on PATH
+	AgentCmd       string `mapstructure:"agent_cmd"` // command run in tmux on attach
 	AgentServePort int    `mapstructure:"agent_serve_port"`
 	HostAgentBin   string `mapstructure:"host_agent_bin"`
 }
@@ -73,8 +73,8 @@ func Default() *CellConfig {
 		MemSizeMiB:          8192,
 		ProjectDiskSizeMB:   3072,
 		RootfsSizeMB:        4096,
-		BootTimeoutSec:      120 * time.Second,
-		SSHReadyTimeoutSec:  90 * time.Second,
+		BootTimeout:         120 * time.Second,
+		SSHReadyTimeout:     90 * time.Second,
 		GuestProjectMount:   "/project",
 		GuestRepoDir:        "/project",
 		GuestAttachScript:   "/opt/guest-init/tmux-attach.sh",
@@ -147,8 +147,8 @@ func Load() (*CellConfig, error) {
 	v.SetDefault("mem_size_mib", def.MemSizeMiB)
 	v.SetDefault("project_disk_size_mb", def.ProjectDiskSizeMB)
 	v.SetDefault("rootfs_size_mb", def.RootfsSizeMB)
-	v.SetDefault("boot_timeout_sec", def.BootTimeoutSec)
-	v.SetDefault("ssh_ready_timeout_sec", def.SSHReadyTimeoutSec)
+	v.SetDefault("boot_timeout_sec", def.BootTimeout)
+	v.SetDefault("ssh_ready_timeout_sec", def.SSHReadyTimeout)
 	v.SetDefault("guest_project_mount", def.GuestProjectMount)
 	v.SetDefault("guest_repo_dir", def.GuestRepoDir)
 	v.SetDefault("guest_attach_script", def.GuestAttachScript)

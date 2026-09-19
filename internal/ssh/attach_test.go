@@ -14,8 +14,8 @@ import (
 
 func TestCheckFatal(t *testing.T) {
 	cases := []struct {
-		log    string
-		fatal  bool
+		log   string
+		fatal bool
 	}{
 		{"[guest-init] ERROR: missing marker", true},
 		{"Kernel panic - not syncing", true},

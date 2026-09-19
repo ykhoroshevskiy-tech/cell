@@ -16,13 +16,13 @@ const (
 )
 
 type NetworkConfig struct {
-	Version    int    `json:"network_version"`
-	TapName    string `json:"tap_name"`
-	HostIP     string `json:"host_ip"`
-	GuestIP    string `json:"guest_ip"`
-	Netmask    string `json:"netmask"`
-	GuestMac   string `json:"guest_mac"`
-	CIDR       int    `json:"cidr"`
+	Version  int    `json:"network_version"`
+	TapName  string `json:"tap_name"`
+	HostIP   string `json:"host_ip"`
+	GuestIP  string `json:"guest_ip"`
+	Netmask  string `json:"netmask"`
+	GuestMac string `json:"guest_mac"`
+	CIDR     int    `json:"cidr"`
 }
 
 func (n *NetworkConfig) KernelIPArg() string {

@@ -32,7 +32,7 @@ func newStatusCmd(cfg *config.CellConfig) *cobra.Command {
 				enc.SetIndent("", "  ")
 				return enc.Encode(st)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "session=%s vm_running=%v ssh=%v server=%v runtime=%v guest_ip=%s tap=%s\n",
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "session=%s vm_running=%v ssh=%v server=%v runtime=%v guest_ip=%s tap=%s\n",
 				st.SessionID, st.VMRunning, st.SSHReachable, st.ServerReady, st.RuntimeReady, st.GuestIP, st.TapName)
 			return nil
 		},
