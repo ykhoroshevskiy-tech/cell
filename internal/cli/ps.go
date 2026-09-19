@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
+	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 	"github.com/ykhoroshevskiy-tech/cell/internal/session"
 )
 
@@ -34,11 +35,13 @@ func newPsCmd(cfg *config.CellConfig) *cobra.Command {
 			}
 			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%-14s %-10s %-16s %-40s %s\n", "SESSION", "STATE", "GUEST_IP", "REPO", "CREATED")
 			for _, s := range list {
+				// List repairs records first, so a dead VM can never carry
+				// State "running" here — never print "running" for a dead VM.
 				state := string(s.State)
 				if s.VMRunning {
-					state = "running"
-				} else if s.State == "" {
-					state = "stopped"
+					state = string(models.StateRunning)
+				} else if state == "" || state == string(models.StateRunning) {
+					state = string(models.StateStopped)
 				}
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%-14s %-10s %-16s %-40s %s\n",
 					s.SessionID, state, s.GuestIP, s.RepoSource, s.CreatedAt.Format(time.RFC3339))

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -15,6 +16,52 @@ import (
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
 )
+
+const stderrTailLines = 20
+
+// StderrTail is a bounded ring of the last N lines written by a process
+// (e.g. the ssh tunnel), so failures can carry the real root cause.
+type StderrTail struct {
+	mu    sync.Mutex
+	lines []string
+	buf   strings.Builder
+}
+
+func NewStderrTail() *StderrTail { return &StderrTail{} }
+
+func (t *StderrTail) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	for _, b := range p {
+		if b == '\n' {
+			t.flushLine()
+			continue
+		}
+		t.buf.WriteByte(b)
+	}
+	return len(p), nil
+}
+
+func (t *StderrTail) flushLine() {
+	line := t.buf.String()
+	t.buf.Reset()
+	if line == "" {
+		return
+	}
+	t.lines = append(t.lines, line)
+	if len(t.lines) > stderrTailLines {
+		t.lines = t.lines[len(t.lines)-stderrTailLines:]
+	}
+}
+
+func (t *StderrTail) Tail() []string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.flushLine()
+	out := make([]string, len(t.lines))
+	copy(out, t.lines)
+	return out
+}
 
 var fatalPatterns = []struct {
 	pattern *regexp.Regexp
@@ -272,12 +319,12 @@ func tunnelProcessAlive(proc *os.Process) bool {
 	return proc.Signal(syscall.Signal(0)) == nil
 }
 
-func waitTunnelForwardReady(hostPort int, proc *os.Process, timeout time.Duration) error {
+func waitTunnelForwardReady(hostPort int, proc *os.Process, timeout time.Duration, tail *StderrTail) error {
 	deadline := time.Now().Add(timeout)
 	addr := net.JoinHostPort("127.0.0.1", fmt.Sprintf("%d", hostPort))
 	for time.Now().Before(deadline) {
 		if !tunnelProcessAlive(proc) {
-			return fmt.Errorf("ssh tunnel exited before forward ready")
+			return wrapTunnelError("ssh tunnel exited before forward ready", tail)
 		}
 		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
 		if err == nil {
@@ -286,11 +333,38 @@ func waitTunnelForwardReady(hostPort int, proc *os.Process, timeout time.Duratio
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return fmt.Errorf("ssh tunnel forward not ready")
+	return wrapTunnelError("ssh tunnel forward not ready", tail)
 }
 
-func WaitTunnelForwardReadyForTest(hostPort int, proc *os.Process, timeout time.Duration) error {
-	return waitTunnelForwardReady(hostPort, proc, timeout)
+// wrapTunnelError appends the tunnel stderr tail (root cause: guest sshd
+// down, network gone, askpass prompt, ...) to the failure message.
+func wrapTunnelError(msg string, tail *StderrTail) error {
+	if tail == nil {
+		return fmt.Errorf("%s", msg)
+	}
+	lines := tail.Tail()
+	if len(lines) == 0 {
+		return fmt.Errorf("%s", msg)
+	}
+	return fmt.Errorf("%s; ssh tunnel stderr (tail): %s", msg, strings.Join(lines, " | "))
+}
+
+// tunnelFailureError builds the user-facing attach failure: a dead VM is the
+// root cause, not the tunnel, so guide to `cell start`; otherwise surface the
+// tunnel stderr tail.
+func tunnelFailureError(session *models.SessionRecord, waitErr error, tail *StderrTail) error {
+	if !VMRunningForSession(session) {
+		return fmt.Errorf("VM not running while attaching; cell start --session %s", session.SessionID)
+	}
+	return fmt.Errorf("attach failed: %w", waitErr)
+}
+
+func WaitTunnelForwardReadyForTest(hostPort int, proc *os.Process, timeout time.Duration, tail *StderrTail) error {
+	return waitTunnelForwardReady(hostPort, proc, timeout, tail)
+}
+
+func TunnelFailureErrorForTest(session *models.SessionRecord, waitErr error, tail *StderrTail) error {
+	return tunnelFailureError(session, waitErr, tail)
 }
 
 func AttachTUI(session *models.SessionRecord, cfg *config.CellConfig, password string) error {
@@ -307,13 +381,16 @@ func AttachTUI(session *models.SessionRecord, cfg *config.CellConfig, password s
 	}
 	session.HostForwardPort = hostPort
 	tunnel := exec.Command("ssh", TunnelSSHArgs(session, cfg, hostPort)...)
+	tail := NewStderrTail()
+	tunnel.Stderr = tail
 	if err := tunnel.Start(); err != nil {
 		return fmt.Errorf("ssh tunnel: %w", err)
 	}
 	defer func() { _ = tunnel.Process.Kill(); _ = tunnel.Wait() }()
 
-	if err := waitTunnelForwardReady(hostPort, tunnel.Process, tunnelForwardWaitTimeout); err != nil {
-		return err
+	if err := waitTunnelForwardReady(hostPort, tunnel.Process, tunnelForwardWaitTimeout, tail); err != nil {
+		_ = tunnel.Wait() // flush stderr copy before reading the tail
+		return tunnelFailureError(session, err, tail)
 	}
 
 	tui := exec.Command(bin, TUIArgs(cfg, hostPort, password)...)
