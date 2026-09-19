@@ -1,6 +1,10 @@
 package bootstrap
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/ykhoroshevskiy-tech/cell/internal/config"
+)
 
 func TestResolveArtifactsFromPins(t *testing.T) {
 	pins := ArtifactPins{
@@ -19,6 +23,37 @@ func TestResolveArtifactsFromPins(t *testing.T) {
 	}
 	if fc.URL != wantFC || fc.Version != "v1.16.1" {
 		t.Fatalf("firecracker = %+v", fc)
+	}
+	if kernel.SHA256 != artifactSHA256s["kernel"]["x86_64"] {
+		t.Fatalf("kernel.SHA256 = %q want pinned sum", kernel.SHA256)
+	}
+	if fc.SHA256 != artifactSHA256s["firecracker"]["x86_64"] {
+		t.Fatalf("firecracker.SHA256 = %q want pinned sum", fc.SHA256)
+	}
+}
+
+func TestResolveArtifactsCustomPinsResolveWithoutKnownSHA256(t *testing.T) {
+	pins := ArtifactPins{
+		CIPrefix:           "firecracker-ci/other/",
+		KernelVersion:      "6.1.100",
+		FirecrackerVersion: "v1.16.0",
+	}
+	kernel, fc, err := resolveArtifacts("aarch64", pins)
+	if err != nil {
+		t.Fatalf("resolveArtifacts: %v", err)
+	}
+	if kernel.SHA256 != "" || fc.SHA256 != "" {
+		t.Fatalf("custom pins must not carry another version's sum: kernel=%q fc=%q", kernel.SHA256, fc.SHA256)
+	}
+}
+
+func TestArtifactPinsMatchConfigDefaults(t *testing.T) {
+	def := config.Default()
+	if builtinCIPrefix != def.CIPrefix || builtinKernelVersion != def.KernelVersion ||
+		builtinFirecrackerVersion != def.FirecrackerVersion {
+		t.Fatalf("builtin pins %s/%s/%s diverge from config defaults %s/%s/%s",
+			builtinCIPrefix, builtinKernelVersion, builtinFirecrackerVersion,
+			def.CIPrefix, def.KernelVersion, def.FirecrackerVersion)
 	}
 }
 

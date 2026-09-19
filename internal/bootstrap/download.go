@@ -164,6 +164,16 @@ func download(dst string, art Artifact) error {
 		if lastErr != nil {
 			continue
 		}
+		if art.SHA256 == "" {
+			// Custom pins: file content is publisher-defined, no known sum.
+			// Rename and accept without verification.
+			if err := os.Rename(dst+".tmp", dst); err != nil {
+				return err
+			}
+			st, _ := os.Stat(dst)
+			fmt.Printf("✓ %s %s (no pinned sha256 for custom artifact pins)\n", art.Name, humanSize(st.Size()))
+			return nil
+		}
 		fmt.Printf("verifying sha256…\n")
 		if !sha256Matches(dst+".tmp", art.SHA256) {
 			got, _ := sha256File(dst + ".tmp")
