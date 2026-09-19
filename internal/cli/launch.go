@@ -72,7 +72,7 @@ func newLaunchCmd(cfg *config.CellConfig) *cobra.Command {
 					return err
 				}
 				if warn != "" {
-					fmt.Fprintln(cmd.ErrOrStderr(), warn)
+					_, _ = fmt.Fprintln(cmd.ErrOrStderr(), warn)
 				}
 				agentConfig = abs
 			}

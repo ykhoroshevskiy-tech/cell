@@ -125,7 +125,7 @@ func (f *fakeRunner) simulate(name string, args ...string) ([]byte, error) {
 				if f.links[dev] || f.bridges[dev] {
 					return []byte(dev + ": UP\n"), nil
 				}
-				return nil, fmt.Errorf("Device %q does not exist", dev)
+				return nil, fmt.Errorf("device %q does not exist", dev)
 			}
 			var b strings.Builder
 			f.mu.Lock()

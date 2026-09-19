@@ -20,7 +20,14 @@ jobs:
       - name: Vet
         run: go vet ./...
       - name: Test
-        run: go test ./...
+        run: go test -coverprofile=coverage.out ./...
+      - name: Coverage summary
+        run: go tool cover -func=coverage.out | tail -1
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.out
+          fail_ci_if_error: false
       - name: Behavioral gates (unprivileged)
         run: |
           ./cell version | grep -E '^cell 0\.[0-9]+\.[0-9]+\+g[0-9a-f]+'
@@ -30,3 +37,15 @@ jobs:
             echo "launch must fail without root"; exit 1
           fi
           ./cell launch --repo . 2>&1 | grep -F 'requires root — run: sudo cell launch'
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest

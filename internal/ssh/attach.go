@@ -57,7 +57,7 @@ func WaitForSSH(guestIP string, port int, timeout time.Duration) error {
 	for time.Now().Before(deadline) {
 		conn, err := net.DialTimeout("tcp", addr, time.Second)
 		if err == nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil
 		}
 		verbose.V("ssh: waiting for %s (%v remaining)", addr, time.Until(deadline).Round(time.Second))
@@ -117,7 +117,7 @@ func RuntimeReady(serialLogPath string) bool {
 }
 
 func WaitRuntimeReady(session *models.SessionRecord, cfg *config.CellConfig) error {
-	deadline := time.Now().Add(cfg.SSHReadyTimeoutSec)
+	deadline := time.Now().Add(cfg.SSHReadyTimeout)
 	var offset int64
 
 	for time.Now().Before(deadline) {
@@ -131,9 +131,9 @@ func WaitRuntimeReady(session *models.SessionRecord, cfg *config.CellConfig) err
 			n, _ := f.ReadAt(buf, offset)
 			offset += int64(n)
 			chunk := string(buf[:n])
-			f.Close()
+			_ = f.Close()
 			if verbose.Enabled() && n > 0 {
-				os.Stderr.WriteString(chunk)
+				_, _ = os.Stderr.WriteString(chunk)
 			}
 			if fatal := checkFatal(chunk); fatal != "" {
 				return fmt.Errorf("%s\n--- serial tail ---\n%s", fatal, ReadTail(session.SerialLogPath, 20))
@@ -150,7 +150,7 @@ func WaitRuntimeReady(session *models.SessionRecord, cfg *config.CellConfig) err
 		time.Sleep(200 * time.Millisecond)
 	}
 	return fmt.Errorf("guest not ready within %v\n--- serial tail ---\n%s",
-		cfg.SSHReadyTimeoutSec, ReadTail(session.SerialLogPath, 20))
+		cfg.SSHReadyTimeout, ReadTail(session.SerialLogPath, 20))
 }
 
 func HealthProbeRemote(cfg *config.CellConfig) string {
@@ -281,7 +281,7 @@ func waitTunnelForwardReady(hostPort int, proc *os.Process, timeout time.Duratio
 		}
 		conn, err := net.DialTimeout("tcp", addr, 200*time.Millisecond)
 		if err == nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -322,4 +322,3 @@ func AttachTUI(session *models.SessionRecord, cfg *config.CellConfig, password s
 	tui.Stderr = os.Stderr
 	return tui.Run()
 }
-

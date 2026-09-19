@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	GuestPasswordRel   = ".filter/opencode-server.pass"
-	GuestServePortRel  = ".filter/opencode-serve.port"
+	GuestPasswordRel  = ".filter/opencode-server.pass"
+	GuestServePortRel = ".filter/opencode-serve.port"
 )
 
 func ServerPasswordPath(sessionDir string) string {
@@ -36,8 +36,9 @@ func WriteServerPassword(sessionDir string) (string, error) {
 		return "", err
 	}
 	if _, err := f.Write([]byte(pw + "\n")); err != nil {
-		f.Close()
-		os.Remove(path)
+		_ = f.Close()
+		_ = os.Remove(path)
+
 		return "", err
 	}
 	if err := f.Close(); err != nil {

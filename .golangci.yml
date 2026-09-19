@@ -1,0 +1,11 @@
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - ineffassign
+    - staticcheck
+    - govet
+
+issues:
+  exclude-use-default: true

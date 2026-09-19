@@ -10,8 +10,8 @@ func TestIsTTYOnPipe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer r.Close()
-	defer w.Close()
+	defer func() { _ = r.Close() }()
+	defer func() { _ = w.Close() }()
 	if isTTY(w) {
 		t.Fatal("pipe write end should not be a TTY")
 	}

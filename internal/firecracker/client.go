@@ -1,6 +1,7 @@
 package firecracker
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -22,7 +23,7 @@ func NewClient(socketPath string) *Client {
 		socketPath: socketPath,
 		httpClient: &http.Client{
 			Transport: &http.Transport{
-				Dial: func(_, _ string) (net.Conn, error) {
+				DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 					return net.Dial("unix", socketPath)
 				},
 			},
@@ -46,7 +47,7 @@ func (c *Client) request(method, path string, body io.Reader) error {
 	if err != nil {
 		return fmt.Errorf("fc request %s %s: %w", method, path, err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		respBody, _ := io.ReadAll(resp.Body)
 		return fmt.Errorf("fc %s %s (%d): %s", method, path, resp.StatusCode, strings.TrimSpace(string(respBody)))

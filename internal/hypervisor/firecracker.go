@@ -33,7 +33,7 @@ func (f *FirecrackerHypervisor) Start(ctx context.Context, cfg *models.VmConfigD
 	cmd := exec.Command(f.BinPath, "--api-sock", socketPath)
 	stdin, err := os.Open(os.DevNull)
 	if err != nil {
-		logFile.Close()
+		_ = logFile.Close()
 		return 0, fmt.Errorf("open /dev/null: %w", err)
 	}
 	cmd.Stdin = stdin
@@ -41,16 +41,16 @@ func (f *FirecrackerHypervisor) Start(ctx context.Context, cfg *models.VmConfigD
 	cmd.Stderr = logFile
 
 	if err := cmd.Start(); err != nil {
-		stdin.Close()
-		logFile.Close()
+		_ = stdin.Close()
+		_ = logFile.Close()
 		return 0, fmt.Errorf("start firecracker: %w", err)
 	}
 	// Keep stdin/logFile open for the child (Python keeps serial_log open).
 	// Reap in background when FC exits so we don't leave zombies forever.
 	go func() {
 		_ = cmd.Wait()
-		stdin.Close()
-		logFile.Close()
+		_ = stdin.Close()
+		_ = logFile.Close()
 	}()
 
 	pid := cmd.Process.Pid

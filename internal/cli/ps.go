@@ -32,7 +32,7 @@ func newPsCmd(cfg *config.CellConfig) *cobra.Command {
 			if len(list) == 0 {
 				return nil
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%-14s %-10s %-16s %-40s %s\n", "SESSION", "STATE", "GUEST_IP", "REPO", "CREATED")
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%-14s %-10s %-16s %-40s %s\n", "SESSION", "STATE", "GUEST_IP", "REPO", "CREATED")
 			for _, s := range list {
 				state := string(s.State)
 				if s.VMRunning {
@@ -40,7 +40,7 @@ func newPsCmd(cfg *config.CellConfig) *cobra.Command {
 				} else if s.State == "" {
 					state = "stopped"
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%-14s %-10s %-16s %-40s %s\n",
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%-14s %-10s %-16s %-40s %s\n",
 					s.SessionID, state, s.GuestIP, s.RepoSource, s.CreatedAt.Format(time.RFC3339))
 			}
 			return nil

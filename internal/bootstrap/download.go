@@ -17,7 +17,7 @@ func sha256File(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
 		return "", err
@@ -94,7 +94,7 @@ func isTTY(f *os.File) bool {
 
 func (p *progressWriter) redraw(line string) {
 	// \r + line + clear-to-EOL so shorter finals never leave garbage
-	fmt.Fprintf(p.out, "\r%s\033[K", line)
+	_, _ = fmt.Fprintf(p.out, "\r%s\033[K", line)
 }
 
 func (p *progressWriter) Write(buf []byte) (int, error) {
@@ -145,7 +145,7 @@ func (p *progressWriter) Finish() {
 	}
 	line := fmt.Sprintf("%s:  100%%  %s/%s  done", p.name, humanSize(size), humanSize(size))
 	p.redraw(line)
-	fmt.Fprintln(p.out)
+	_, _ = fmt.Fprintln(p.out)
 }
 
 func download(dst string, art Artifact) error {
@@ -201,7 +201,7 @@ func downloadOnce(dst string, art Artifact) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		return fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
@@ -214,7 +214,7 @@ func downloadOnce(dst string, art Artifact) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if offset > 0 {
 		if _, err := f.Seek(offset, io.SeekStart); err != nil {
 			return err
