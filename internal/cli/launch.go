@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/ykhoroshevskiy-tech/cell/internal/bootstrap"
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
+	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 	"github.com/ykhoroshevskiy-tech/cell/internal/session"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
 )
@@ -38,6 +39,7 @@ func newLaunchCmd(cfg *config.CellConfig) *cobra.Command {
 	var repo string
 	var noAttach bool
 	var configPath string
+	var agentKind string
 	cmd := &cobra.Command{
 		Use:   "launch",
 		Short: "Stage repo, boot VM, attach SSH, auto-pull",
@@ -45,7 +47,11 @@ func newLaunchCmd(cfg *config.CellConfig) *cobra.Command {
 			if repo == "" {
 				return fmt.Errorf("--repo is required")
 			}
-			verbose.V("cell launch repo=%s attach=%v", repo, !noAttach)
+			kind := models.NormalizeAgentKind(agentKind)
+			if kind == "" {
+				return fmt.Errorf("invalid --agent %q (want opencode|claude|none)", agentKind)
+			}
+			verbose.V("cell launch repo=%s attach=%v agent=%s", repo, !noAttach, kind)
 			if err := os.MkdirAll(cfg.SessionDataDir, 0755); err != nil {
 				return err
 			}
@@ -77,7 +83,7 @@ func newLaunchCmd(cfg *config.CellConfig) *cobra.Command {
 				agentConfig = abs
 			}
 
-			sess, err := sm.Launch(ctx, repo, agentConfig, !noAttach)
+			sess, err := sm.Launch(ctx, repo, agentConfig, !noAttach, kind)
 			if sess != nil && !noAttach {
 				fmt.Printf("session %s still running; cell attach --session %s / cell stop --session %s\n",
 					sess.SessionID, sess.SessionID, sess.SessionID)
@@ -92,6 +98,8 @@ func newLaunchCmd(cfg *config.CellConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&repo, "repo", "", "Source repository directory")
+	agentKind = cfg.CellAgent
+	cmd.Flags().StringVar(&agentKind, "agent", agentKind, "In-guest agent: opencode | claude | none")
 	cmd.Flags().StringVar(&configPath, "config", "", "OpenCode JSON for guest ~/.config/opencode/opencode.json")
 	cmd.Flags().BoolVar(&noAttach, "no-attach", false, "Wait for ready but do not exec SSH")
 	_ = cmd.MarkFlagRequired("repo")
