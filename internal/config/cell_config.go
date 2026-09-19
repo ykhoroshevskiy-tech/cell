@@ -1,12 +1,14 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/spf13/viper"
+	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 )
 
 type CellConfig struct {
@@ -44,6 +46,7 @@ type CellConfig struct {
 	NodeVersion         string        `mapstructure:"node_version"`
 	UvVersion           string        `mapstructure:"uv_version"`
 	PythonVersion       string        `mapstructure:"python_version"`
+	CellAgent           string        `mapstructure:"agent"` // opencode | claude | none; empty → opencode
 	// Agent install/attach (vendor-neutral; defaults target OpenCode).
 	AgentURL       string `mapstructure:"agent_url"` // empty = skip install; may contain {target}
 	AgentBin       string `mapstructure:"agent_bin"` // binary name inside tarball and on PATH
@@ -93,12 +96,39 @@ func Default() *CellConfig {
 		NodeVersion:         "v24.20.0",
 		UvVersion:           "0.12.7",
 		PythonVersion:       "3.13",
+		CellAgent:           models.AgentKindOpenCode,
 		AgentURL:            "https://github.com/anomalyco/opencode/releases/latest/download/opencode-{target}.tar.gz",
 		AgentBin:            "opencode",
 		AgentCmd:            "opencode serve --hostname 127.0.0.1 --port 4096",
 		AgentServePort:      4096,
 		HostAgentBin:        "opencode",
 	}
+}
+
+const (
+	// claudeCodeVersion pins the @anthropic-ai/claude-code npm tarball version
+	// used for the claude agent install; CELL_AGENT_URL can override/replace.
+	claudeCodeVersion = "1.0.98"
+)
+
+func defaultClaudeAgentURL() string {
+	return fmt.Sprintf(
+		"https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-%s.tgz",
+		claudeCodeVersion)
+}
+
+// applyAgentKindDefaults rewrites the default agent install/serve fields for
+// the selected agent kind. Env overrides (CELL_AGENT_URL etc.) still win.
+func applyAgentKindDefaults(kind string, def *CellConfig) {
+	def.CellAgent = kind
+	if kind != models.AgentKindClaude {
+		return
+	}
+	def.AgentURL = defaultClaudeAgentURL()
+	def.AgentBin = "claude"
+	def.AgentCmd = "" // no serve mode; AgentURL/AgentBin only
+	def.AgentServePort = 0
+	def.HostAgentBin = "claude"
 }
 
 func defaultExcludePatterns() []string {
@@ -133,7 +163,7 @@ func Load() (*CellConfig, error) {
 		"auto_pull", "auto_pull_interval_sec", "rebuild_rootfs", "ssh_public_key",
 		"ci_prefix", "kernel_version", "firecracker_version", "squashfs_version", "node_version",
 		"uv_version", "python_version",
-		"agent_url", "agent_bin", "agent_cmd",
+		"agent", "agent_url", "agent_bin", "agent_cmd",
 		"agent_serve_port", "host_agent_bin",
 	}
 	for _, k := range keys {
@@ -141,6 +171,12 @@ func Load() (*CellConfig, error) {
 	}
 
 	def := Default()
+	kind := models.NormalizeAgentKind(os.Getenv("CELL_AGENT"))
+	if kind == "" {
+		return nil, fmt.Errorf("invalid CELL_AGENT %q (want opencode|claude|none)", os.Getenv("CELL_AGENT"))
+	}
+	applyAgentKindDefaults(kind, def)
+	v.SetDefault("agent", kind)
 	v.SetDefault("runtime_root", def.RuntimeRoot)
 	v.SetDefault("data_dir", def.DataDir)
 	v.SetDefault("vcpu_count", def.VCPUCount)
@@ -240,11 +276,12 @@ func Load() (*CellConfig, error) {
 		cfg.AgentCmd = def.AgentCmd
 	}
 	if cfg.AgentServePort == 0 {
-		cfg.AgentServePort = 4096
+		cfg.AgentServePort = def.AgentServePort
 	}
 	if cfg.HostAgentBin == "" {
-		cfg.HostAgentBin = "opencode"
+		cfg.HostAgentBin = def.HostAgentBin
 	}
+	cfg.CellAgent = kind
 	// AgentURL: empty after env means skip install; only fill default when unset via SetDefault.
 	// viper leaves "" if CELL_AGENT_URL="" intentionally — do not replace empty with default here.
 	return cfg, nil

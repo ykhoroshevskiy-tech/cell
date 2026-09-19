@@ -22,6 +22,7 @@ type SessionListEntry struct {
 	TapName      string       `json:"tap_name,omitempty"`
 	State        SessionState `json:"state"`
 	RepoSource   string       `json:"repo_source"`
+	Agent        string       `json:"agent,omitempty"`
 	CreatedAt    time.Time    `json:"created_at"`
 }
 

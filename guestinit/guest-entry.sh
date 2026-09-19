@@ -6,6 +6,7 @@ MOUNT="/project"
 REPO_DIR="${MOUNT}"
 AGENT_USER="${AGENT_USER:-agent}"
 TMUX_SESSION="${TMUX_SESSION:-agent}"
+AGENT_KIND="${AGENT_KIND:-opencode}"
 
 log() { echo "[guest-init] $*"; }
 
@@ -24,22 +25,35 @@ wait_disk() {
   exit 1
 }
 
-mount_project() {
-  wait_disk
-  if ! mountpoint -q "${MOUNT}"; then
-    mount "${PROJECT_DISK}" "${MOUNT}" || {
-      log "mount failed, trying mkfs"
-      mkfs.ext4 -F "${PROJECT_DISK}"
-      mount "${PROJECT_DISK}" "${MOUNT}"
-    }
-  fi
-  log "project mounted at ${MOUNT}"
-  if [ ! -f "${REPO_DIR}/.filter-staged" ]; then
-    log "ERROR: project marker missing in ${REPO_DIR}"
-    exit 1
-  fi
-  log "project marker ok"
-}
+ mount_project() {
+   wait_disk
+   if ! mountpoint -q "${MOUNT}"; then
+     mount "${PROJECT_DISK}" "${MOUNT}" || {
+       log "mount failed, trying mkfs"
+       mkfs.ext4 -F "${PROJECT_DISK}"
+       mount "${PROJECT_DISK}" "${MOUNT}"
+     }
+   fi
+   log "project mounted at ${MOUNT}"
+   if [ ! -f "${REPO_DIR}/.filter-staged" ]; then
+     log "ERROR: project marker missing in ${REPO_DIR}"
+     exit 1
+   fi
+   log "project marker ok"
+   AGENT_KIND="opencode"
+   KIND_FILE="${REPO_DIR}/.filter/agent.kind"
+   if [ -s "${KIND_FILE}" ]; then
+     AGENT_KIND="$(cat "${KIND_FILE}")"
+   fi
+   case "${AGENT_KIND}" in
+     opencode|claude|none) ;;
+     *)
+       AGENT_KIND="opencode"
+       log "unknown agent kind in ${KIND_FILE}; defaulting to opencode"
+       ;;
+   esac
+   log "agent kind: ${AGENT_KIND}"
+ }
 
 chown_repo() {
   chown -R "${AGENT_USER}:${AGENT_USER}" "${REPO_DIR}"
@@ -102,32 +116,47 @@ ensure_filter_gitignore() {
 setup_agent_home() {
   AGENT_HOME="/home/${AGENT_USER}"
   RW="${MOUNT}/.filter/agent-home"
-  mkdir -p "${RW}/.cache" "${RW}/.config/opencode" "${RW}/.local/share"
-  CFG="${RW}/.config/opencode/opencode.json"
-  if [ -f "${MOUNT}/.filter/opencode.json" ]; then
-    if cp "${MOUNT}/.filter/opencode.json" "${CFG}"; then
-      log "agent config from host .filter/opencode.json"
-    else
-      log "WARN: failed to copy host opencode.json; using default"
+  if [ "${AGENT_KIND}" = "opencode" ]; then
+    mkdir -p "${RW}/.cache" "${RW}/.config/opencode" "${RW}/.local/share"
+    CFG="${RW}/.config/opencode/opencode.json"
+    if [ -f "${MOUNT}/.filter/opencode.json" ]; then
+      if cp "${MOUNT}/.filter/opencode.json" "${CFG}"; then
+        log "agent config from host .filter/opencode.json"
+      else
+        log "WARN: failed to copy host opencode.json; using default"
+      fi
     fi
-  fi
-  if [ ! -f "${CFG}" ]; then
-    if [ -d /opt/opencode-plugins/node_modules/superpowers ]; then
-      cat > "${CFG}" <<'EOF'
+    if [ ! -f "${CFG}" ]; then
+      if [ -d /opt/opencode-plugins/node_modules/superpowers ]; then
+        cat > "${CFG}" <<'EOF'
 {
   "$schema": "https://opencode.ai/config.json",
   "permission": "allow",
   "plugin": ["/opt/opencode-plugins/node_modules/superpowers"]
 }
 EOF
-    else
-      cat > "${CFG}" <<'EOF'
+      else
+        cat > "${CFG}" <<'EOF'
 {
   "$schema": "https://opencode.ai/config.json",
   "permission": "allow"
 }
 EOF
+      fi
     fi
+  else
+    mkdir -p "${RW}/.cache" "${RW}/.local/share"
+  fi
+  if [ "${AGENT_KIND}" = "claude" ]; then
+    mkdir -p "${RW}/.claude"
+    cat > "${RW}/.claude/settings.json" <<'EOF'
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions"
+  }
+}
+EOF
+    log "claude settings written to ${RW}/.claude/settings.json"
   fi
   for dot in .zshrc .profile .bashrc; do
     if [ ! -e "${RW}/${dot}" ] && [ -e "${AGENT_HOME}/${dot}" ]; then
@@ -177,31 +206,40 @@ setup_ssh() {
 
 start_tmux_session() {
   AGENT_HOME="/home/${AGENT_USER}"
-  PASS_FILE="${REPO_DIR}/.filter/opencode-server.pass"
-  PORT_FILE="${REPO_DIR}/.filter/opencode-serve.port"
-  SERVE_PORT=4096
-  if [ -s "${PORT_FILE}" ]; then
-    SERVE_PORT=$(cat "${PORT_FILE}")
+  if [ "${AGENT_KIND}" = "none" ]; then
+    log "agent disabled (none); ssh-only runtime, no tmux boot"
+    return 0
   fi
-  if [ ! -s "${PASS_FILE}" ]; then
-    log "ERROR: missing ${PASS_FILE}"
-    return 1
-  fi
-  cat > /run/opencode.env <<EOF
-OPENCODE_SERVER_PASSWORD=$(cat "${PASS_FILE}")
-EOF
-  chmod 600 /run/opencode.env
-  chown "${AGENT_USER}:${AGENT_USER}" /run/opencode.env
   ERR="/run/tmux-start.err"
   agent_tmux() {
     su - "${AGENT_USER}" -c "$*"
   }
-  : > "${ERR}"
-  if agent_tmux "tmux has-session -t '${TMUX_SESSION}'" 2>/dev/null; then
-    log "tmux session ${TMUX_SESSION} already exists"
-    return 0
-  fi
-  if agent_tmux "
+  if [ "${AGENT_KIND}" = "claude" ]; then
+    TMUX_SPEC="
+    cd '${REPO_DIR}' &&
+    tmux new-session -d -s '${TMUX_SESSION}' -c '${REPO_DIR}' \
+      'export HOME=${AGENT_HOME}; export TMPDIR=/tmp; \
+       export PATH=/usr/local/bin:/usr/bin:/bin; \
+       cd ${REPO_DIR}; \
+       exec claude --dangerously-skip-permissions'
+  "
+  else
+    PASS_FILE="${REPO_DIR}/.filter/opencode-server.pass"
+    PORT_FILE="${REPO_DIR}/.filter/opencode-serve.port"
+    SERVE_PORT=4096
+    if [ -s "${PORT_FILE}" ]; then
+      SERVE_PORT=$(cat "${PORT_FILE}")
+    fi
+    if [ ! -s "${PASS_FILE}" ]; then
+      log "ERROR: missing ${PASS_FILE}"
+      return 1
+    fi
+    cat > /run/opencode.env <<EOF
+OPENCODE_SERVER_PASSWORD=$(cat "${PASS_FILE}")
+EOF
+    chmod 600 /run/opencode.env
+    chown "${AGENT_USER}:${AGENT_USER}" /run/opencode.env
+    TMUX_SPEC="
     cd '${REPO_DIR}' &&
     tmux new-session -d -s '${TMUX_SESSION}' -c '${REPO_DIR}' \
       'export HOME=${AGENT_HOME}; export TMPDIR=/tmp; export BUN_TMPDIR=/tmp; \
@@ -210,7 +248,14 @@ EOF
        export PATH=/usr/local/bin:/usr/bin:/bin; \
        set -a; . /run/opencode.env; set +a; \
        exec opencode serve --hostname 127.0.0.1 --port ${SERVE_PORT}'
-  " 2>"${ERR}"; then
+  "
+  fi
+  : > "${ERR}"
+  if agent_tmux "tmux has-session -t '${TMUX_SESSION}'" 2>/dev/null; then
+    log "tmux session ${TMUX_SESSION} already exists"
+    return 0
+  fi
+  if agent_tmux "${TMUX_SPEC}" 2>>"${ERR}"; then
     if agent_tmux "tmux has-session -t '${TMUX_SESSION}'" 2>/dev/null; then
       log "tmux session ${TMUX_SESSION} started"
       return 0

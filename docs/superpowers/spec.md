@@ -1,7 +1,8 @@
 # Spec: Cell Runtime
 
-**Status:** reconciled to code at `main` (privilege model c53c609, version scheme
-caeeb17, session completion 893979e, omz plugin 4e1e07d). This is the single
+**Status:** reconciled to code at `feature/*` branches (privilege model c53c609,
+version scheme caeeb17, session completion 893979e, omz plugin 4e1e07d,
+claude agent support — this branch). This is the single
 source of truth; feature specs live in `specs/<date>-<slug>-design.md` under the
 AGENTS.md spec-first rule.
 
@@ -68,6 +69,21 @@ Normative details live in `contracts/*` and `data-model.md`.
   `sudo cell launch --repo`, `cs`, `cps`, `cstop`, `crm`, `cssh`, `cstat`,
   `cverify`, `clogs`, `cpull`, `crescue`, `cboot`, `cnet`, `cver`,
   `cstopall`) and live session completion via `cell __complete`.
+- **FR-040**: Agent kinds are `opencode` (default; legacy `""` normalizes to
+  opencode)`, `claude`, and `none`. `CELL_AGENT`/`launch --agent` select the
+  kind; the session record persists `Agent` and `start`/`attach` honor the
+  stored kind, not the current env.
+- **FR-041**: `claude` guests install `claude` from the pinned npm registry
+  tarball (`CELL_AGENT_URL` override; tarball extraction handles the npm
+  `package/` prefix) and boot it as a raw tmux TUI over SSH — no opencode
+  serve mode, no password file, `~/.claude/settings.json` gets
+  `permissions.defaultMode=bypassPermissions` (VM boundary is the protection).
+- **FR-042**: `none` skips agent install at bootstrap and tmux boot in the
+  guest (SSH-only runtime). The rootfs stamp includes the agent kind so
+  switching kinds rebuilds. Host attach dispatches per kind: opencode →
+  tunnel TUI (host agent binary required), claude/none → `ssh -t` shell path
+  (no host agent requirement), and the opencode server health probe is
+  skipped for claude/none guests.
 
 ## Standing gates (always keep green)
 

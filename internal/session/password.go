@@ -7,11 +7,14 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 )
 
 const (
 	GuestPasswordRel  = ".filter/opencode-server.pass"
 	GuestServePortRel = ".filter/opencode-serve.port"
+	GuestAgentKindRel = ".filter/agent.kind"
 )
 
 func ServerPasswordPath(sessionDir string) string {
@@ -68,6 +71,23 @@ func WriteServePortToDiskRoot(diskRoot string, port int) error {
 		return err
 	}
 	return os.Chmod(dst, 0600)
+}
+
+// WriteAgentKindToDiskRoot stages the agent kind marker so guest-entry.sh can
+// dispatch between the opencode/claude/none guest paths.
+func WriteAgentKindToDiskRoot(diskRoot, kind string) error {
+	normalized := models.NormalizeAgentKind(kind)
+	if normalized == "" {
+		return fmt.Errorf("invalid agent kind %q (want opencode|claude|none)", kind)
+	}
+	dst := filepath.Join(diskRoot, GuestAgentKindRel)
+	if err := os.MkdirAll(filepath.Dir(dst), 0700); err != nil {
+		return err
+	}
+	if err := os.WriteFile(dst, []byte(normalized+"\n"), 0644); err != nil {
+		return err
+	}
+	return nil
 }
 
 func CopyPasswordToDiskRoot(sessionDir, diskRoot string) error {
