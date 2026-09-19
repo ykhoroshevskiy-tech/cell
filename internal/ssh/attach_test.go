@@ -198,7 +198,7 @@ func TestTunnelFailureRootCauseWording(t *testing.T) {
 	}
 }
 
-func TestShellAttachArgsNoAgentCmd(t *testing.T) {
+func TestShellAttachArgs(t *testing.T) {
 	session := &models.SessionRecord{
 		SSHKeyPath:    "/tmp/id",
 		NetworkConfig: &models.NetworkConfig{GuestIP: "172.16.1.2"},
@@ -208,7 +208,6 @@ func TestShellAttachArgsNoAgentCmd(t *testing.T) {
 		TmuxSessionName:   "agent",
 		GuestRepoDir:      "/project",
 		GuestAttachScript: "/opt/guest-init/tmux-attach.sh",
-		AgentCmd:          "opencode serve --hostname 127.0.0.1 --port 4096",
 	}
 	got := ssh.ShellAttachArgs(session, cfg)
 	joined := strings.Join(got, " ")

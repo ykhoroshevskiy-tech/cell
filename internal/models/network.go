@@ -57,7 +57,7 @@ func NewNetworkConfig(sessionID, guestIP string) *NetworkConfig {
 	}
 }
 
-// ValidateNetworkConfig rejects legacy or malformed network records.
+// ValidateNetworkConfig rejects malformed or mismatched network records.
 func ValidateNetworkConfig(cfg *NetworkConfig) error {
 	if cfg == nil {
 		return fmt.Errorf("network config missing")
@@ -66,7 +66,7 @@ func ValidateNetworkConfig(cfg *NetworkConfig) error {
 		return fmt.Errorf("unsupported network_version %d (need %d); remove session with cell rm and launch again", cfg.Version, NetworkVersion)
 	}
 	if cfg.HostIP != BridgeHostIP || cfg.CIDR != BridgeCIDR || cfg.Netmask != BridgeNetmask {
-		return fmt.Errorf("legacy network layout; remove session with cell rm and launch again")
+		return fmt.Errorf("unexpected network layout (%s/%d via %s); remove session with cell rm and launch again", cfg.HostIP, cfg.CIDR, cfg.Netmask)
 	}
 	ip := net.ParseIP(cfg.GuestIP)
 	if ip == nil || ip.To4() == nil {

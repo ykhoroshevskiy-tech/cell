@@ -22,24 +22,6 @@ func TestNormalizeAgentKind(t *testing.T) {
 	}
 }
 
-func TestIsAgentKind(t *testing.T) {
-	cases := []struct {
-		in   string
-		want bool
-	}{
-		{"", false},
-		{"opencode", true},
-		{"claude", true},
-		{"none", true},
-		{"cursor", false},
-	}
-	for _, c := range cases {
-		if got := IsAgentKind(c.in); got != c.want {
-			t.Fatalf("IsAgentKind(%q) = %v want %v", c.in, got, c.want)
-		}
-	}
-}
-
 func TestSessionRecordAgentRoundTrip(t *testing.T) {
 	cases := []struct {
 		agent string

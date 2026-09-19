@@ -41,7 +41,7 @@ func TestNeedsRootfsRebuildWhenSquashfsStampMismatches(t *testing.T) {
 	if err := os.WriteFile(rootfsPath, []byte("rootfs"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(rootfsSquashfsStampPath(rootfsPath), []byte("24.04"), 0644); err != nil {
+	if err := os.WriteFile(rootfsBuildStampPath(rootfsPath), []byte("24.04"), 0644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -59,8 +59,8 @@ func TestSquashfsBuildStampUsesNodePin(t *testing.T) {
 		NodeVersion: "v24.18.0",
 	}
 
-	if got := squashfsBuildStamp(cfg); got != "debootstrap:noble+apt+node:v24.18.0+uv:0.12.7+py:3.13+sp:off+agent:opencode" {
-		t.Fatalf("squashfsBuildStamp() = %q", got)
+	if got := rootfsBuildStamp(cfg); got != "debootstrap:noble+apt+node:v24.18.0+uv:0.12.7+py:3.13+sp:off+agent:opencode" {
+		t.Fatalf("rootfsBuildStamp() = %q", got)
 	}
 }
 
@@ -71,7 +71,7 @@ func TestSquashfsBuildStampIncludesUvAndPython(t *testing.T) {
 		PythonVersion: "3.13",
 	}
 	want := "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+agent:opencode"
-	if got := squashfsBuildStamp(cfg); got != want {
-		t.Fatalf("squashfsBuildStamp() = %q, want %q", got, want)
+	if got := rootfsBuildStamp(cfg); got != want {
+		t.Fatalf("rootfsBuildStamp() = %q, want %q", got, want)
 	}
 }

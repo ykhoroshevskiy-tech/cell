@@ -100,14 +100,14 @@ func TestRootfsSizeMBIndependentOfProjectDisk(t *testing.T) {
 func TestSquashfsBuildStampIncludesNodeVersion(t *testing.T) {
 	cfg := &config.CellConfig{NodeVersion: "v24.20.0"}
 	want := "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+agent:opencode"
-	if got := squashfsBuildStamp(cfg); got != want {
-		t.Fatalf("squashfsBuildStamp() = %q, want %q", got, want)
+	if got := rootfsBuildStamp(cfg); got != want {
+		t.Fatalf("rootfsBuildStamp() = %q, want %q", got, want)
 	}
 }
 
 func TestSquashfsBuildStampSuperpowersToggle(t *testing.T) {
-	off := squashfsBuildStamp(&config.CellConfig{InstallSuperpowers: false})
-	on := squashfsBuildStamp(&config.CellConfig{InstallSuperpowers: true})
+	off := rootfsBuildStamp(&config.CellConfig{InstallSuperpowers: false})
+	on := rootfsBuildStamp(&config.CellConfig{InstallSuperpowers: true})
 	if on == off {
 		t.Fatal("stamp must differ between superpowers on/off (forces rebuild)")
 	}

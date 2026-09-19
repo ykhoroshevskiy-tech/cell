@@ -52,7 +52,6 @@ func TestLoadCellAgentDispatch(t *testing.T) {
 
 func TestLoadCellAgentClaudeDefaults(t *testing.T) {
 	t.Setenv("CELL_AGENT", "claude")
-	t.Setenv("CELL_AGENT_CMD", "")
 	t.Setenv("CELL_AGENT_SERVE_PORT", "")
 	t.Setenv("CELL_HOST_AGENT_BIN", "")
 
@@ -69,9 +68,6 @@ func TestLoadCellAgentClaudeDefaults(t *testing.T) {
 	}
 	if cfg.AgentBin != "claude" {
 		t.Fatalf("AgentBin = %q want claude", cfg.AgentBin)
-	}
-	if cfg.AgentCmd != "" {
-		t.Fatalf("AgentCmd = %q want empty (no serve mode)", cfg.AgentCmd)
 	}
 	if cfg.AgentServePort != 0 {
 		t.Fatalf("AgentServePort = %d want 0", cfg.AgentServePort)

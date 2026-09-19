@@ -22,12 +22,12 @@ func TestSquashfsBuildStampIncludesAgentKind(t *testing.T) {
 	}
 	for _, c := range cases {
 		cfg := &config.CellConfig{CellAgent: c.agent}
-		if got := squashfsBuildStamp(cfg); got != c.want {
-			t.Fatalf("squashfsBuildStamp(agent=%q) = %q want %q", c.agent, got, c.want)
+		if got := rootfsBuildStamp(cfg); got != c.want {
+			t.Fatalf("rootfsBuildStamp(agent=%q) = %q want %q", c.agent, got, c.want)
 		}
 	}
-	opencode := squashfsBuildStamp(&config.CellConfig{CellAgent: models.AgentKindOpenCode})
-	claude := squashfsBuildStamp(&config.CellConfig{CellAgent: models.AgentKindClaude})
+	opencode := rootfsBuildStamp(&config.CellConfig{CellAgent: models.AgentKindOpenCode})
+	claude := rootfsBuildStamp(&config.CellConfig{CellAgent: models.AgentKindClaude})
 	if opencode == claude {
 		t.Fatal("stamp must differ between agent kinds (forces rebuild)")
 	}

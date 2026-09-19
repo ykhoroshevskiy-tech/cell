@@ -37,11 +37,11 @@ func managedFirecrackerPath(cfg *config.CellConfig) string {
 	return filepath.Join(cfg.ImagesDir, "bin", "firecracker")
 }
 
-func rootfsSquashfsStampPath(rootfsPath string) string {
-	return rootfsPath + ".squashfs-version"
+func rootfsBuildStampPath(rootfsPath string) string {
+	return rootfsPath + ".build-stamp"
 }
 
-func squashfsBuildStamp(cfg *config.CellConfig) string {
+func rootfsBuildStamp(cfg *config.CellConfig) string {
 	node := cfg.NodeVersion
 	if node == "" {
 		node = "v24.20.0"
@@ -72,7 +72,7 @@ func needsRootfsRebuild(rootfsPath, expectedStamp string, rebuildRequested bool)
 	if !artifactReady(rootfsPath) {
 		return true, nil
 	}
-	data, err := os.ReadFile(rootfsSquashfsStampPath(rootfsPath))
+	data, err := os.ReadFile(rootfsBuildStampPath(rootfsPath))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return true, nil
@@ -82,8 +82,8 @@ func needsRootfsRebuild(rootfsPath, expectedStamp string, rebuildRequested bool)
 	return strings.TrimSpace(string(data)) != expectedStamp, nil
 }
 
-func writeRootfsSquashfsStamp(rootfsPath, stamp string) error {
-	return os.WriteFile(rootfsSquashfsStampPath(rootfsPath), []byte(stamp+"\n"), 0644)
+func writeRootfsBuildStamp(rootfsPath, stamp string) error {
+	return os.WriteFile(rootfsBuildStampPath(rootfsPath), []byte(stamp+"\n"), 0644)
 }
 
 func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
@@ -109,9 +109,8 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		CIPrefix:           cfg.CIPrefix,
 		KernelVersion:      cfg.KernelVersion,
 		FirecrackerVersion: cfg.FirecrackerVersion,
-		SquashfsVersion:    cfg.SquashfsVersion,
 	}
-	kernelArt, fcArt, _, err := resolveArtifacts(arch, pins)
+	kernelArt, fcArt, err := resolveArtifacts(arch, pins)
 	if err != nil {
 		return err
 	}
@@ -125,7 +124,7 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		_ = os.Remove(fcVersioned)
 		_ = os.Remove(fcTgz)
 		_ = os.Remove(cfg.RootfsPath)
-		_ = os.Remove(rootfsSquashfsStampPath(cfg.RootfsPath))
+		_ = os.Remove(rootfsBuildStampPath(cfg.RootfsPath))
 	}
 
 	if shouldSkipManagedArtifactDownload(cfg.KernelPath, managedKernelPath(cfg), force) {
@@ -166,7 +165,7 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		_ = ensureSymlink(cfg.FirecrackerBin, fcVersioned)
 	}
 
-	needsRootfs, err := needsRootfsRebuild(cfg.RootfsPath, squashfsBuildStamp(cfg), rebuildRootfs || cfg.RebuildRootfs)
+	needsRootfs, err := needsRootfsRebuild(cfg.RootfsPath, rootfsBuildStamp(cfg), rebuildRootfs || cfg.RebuildRootfs)
 	if err != nil {
 		return err
 	}
@@ -175,7 +174,7 @@ func Ensure(cfg *config.CellConfig, force, rebuildRootfs bool) error {
 		if err := buildRootfs(cfg, rootfsSizeMB(cfg)); err != nil {
 			return err
 		}
-		if err := writeRootfsSquashfsStamp(cfg.RootfsPath, squashfsBuildStamp(cfg)); err != nil {
+		if err := writeRootfsBuildStamp(cfg.RootfsPath, rootfsBuildStamp(cfg)); err != nil {
 			return err
 		}
 		rStat, _ := os.Stat(cfg.RootfsPath)

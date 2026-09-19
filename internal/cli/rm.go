@@ -10,7 +10,6 @@ import (
 
 func newRmCmd(cfg *config.CellConfig) *cobra.Command {
 	var sessionID string
-	var legacy bool
 	cmd := &cobra.Command{
 		Use:   "rm",
 		Short: "Remove a stopped session and free its network lease",
@@ -22,13 +21,9 @@ func newRmCmd(cfg *config.CellConfig) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if legacy {
-				return sm.RemoveLegacy(cmd.Context(), sessionID)
-			}
 			return sm.Remove(cmd.Context(), sessionID)
 		},
 	}
 	cmd.Flags().StringVar(&sessionID, "session", "", "Session ID")
-	cmd.Flags().BoolVar(&legacy, "legacy", false, "Remove legacy (pre-bridge) session records")
 	return cmd
 }
