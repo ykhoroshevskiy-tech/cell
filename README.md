@@ -89,7 +89,7 @@ Shell completions (`cell completion zsh`) and the oh-my-zsh plugin
 
 Early / experimental.
 
-**Tested so far only with [OpenCode](https://github.com/sst/opencode)** as the in-guest coding agent. Other agents may work later; they are not validated yet.
+**Validated with [OpenCode](https://github.com/sst/opencode) (tunnelled host TUI) and [Claude Code](https://github.com/anthropics/claude-code) (TUI over SSH+tmux inside the VM)** — `sudo cell launch --agent claude --repo …`; other agents may work via the vendor-neutral `CELL_AGENT_*` layer but are not validated.
 
 Requires Linux with KVM. Mutating commands (`bootstrap`, `launch`, `start`, `stop`, `rm`, `attach`, `ssh`, `pull`, `status`, `verify`, `rescue`) must run as root: run them with `sudo`; without root they fail with `cell: <cmd> requires root — run: sudo cell <cmd>`. Read-only commands (`ps`, `logs`, `version`, `help`) work without root.
 
@@ -102,9 +102,9 @@ Requires Linux with KVM. Mutating commands (`bootstrap`, `launch`, `start`, `sto
 
 ## Build & install
 
-Version bumps on every commit automatically: `scripts/build.sh` derives
-`0.<minor>.<commit-count>+g<short-sha>` from git history and embeds it via
-`-ldflags`.
+Version is tag-driven semver: on a tagged commit the binary reports the tag
+(`0.1.0`); commits after it get `0.1.0-<n>+g<short-sha>`; without tags it is
+`0.0.0-dev+g<short-sha>`. `-dirty` is appended when the working tree is dirty.
 
 ```sh
 scripts/build.sh            # produces ./cell with the git-derived version
@@ -269,8 +269,7 @@ All sessions share one Linux bridge (`cell0`, `172.16.107.1/24`) with stable gue
 
 - **Egress policy** — per-guest outbound allowlist / policy proxy; today guests have unrestricted internet via NAT (see threat model). This is the biggest remaining hole.
 - **Rootless VMM** — run Firecracker under the `jailer` (already fetched by bootstrap) or an unprivileged VMM user instead of root.
-- **More agents** — second in-guest agent (Claude Code) over the vendor-neutral `CELL_AGENT_*` layer; validate, don’t just claim.
-- **Portfolio polish** — release binaries with tags (`v0.1.0`), asciinema demo.
+- **Release automation** — tagged binaries (`v0.1.0`), CI release job.
 
 ## License
 
