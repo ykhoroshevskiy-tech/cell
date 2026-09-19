@@ -4,3 +4,6 @@
 .superpowers/
 lost+found/
 /cell
+/docs/
+*.out
+coverage.out
