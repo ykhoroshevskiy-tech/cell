@@ -39,7 +39,7 @@ func rootfsBuildStamp(cfg *config.CellConfig) string {
 	if agent == "" {
 		agent = models.AgentKindOpenCode
 	}
-	return "debootstrap:noble+apt+node:" + node + "+uv:" + uv + "+py:" + py + "+sp:" + sp + "+agent:" + agent
+	return "debootstrap:noble+apt+node:" + node + "+uv:" + uv + "+py:" + py + "+sp:" + sp + "+layout:cell+agent:" + agent
 }
 
 func needsRootfsRebuild(rootfsPath, expectedStamp string, rebuildRequested bool) (bool, error) {
@@ -149,7 +149,7 @@ func buildRootfs(cfg *config.CellConfig, sizeMB int) error {
 PermitRootLogin no
 PasswordAuthentication no
 PubkeyAuthentication yes
-AuthorizedKeysFile /project/.filter/authorized_keys
+AuthorizedKeysFile /project/.cell/authorized_keys
 UsePAM yes
 PidFile /run/sshd/sshd.pid
 Subsystem sftp /usr/lib/openssh/sftp-server

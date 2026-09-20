@@ -9,9 +9,9 @@ import (
 	"github.com/ykhoroshevskiy-tech/cell/internal/sync"
 )
 
-func TestPullRsyncExcludesFilter(t *testing.T) {
+func TestPullRsyncExcludesCell(t *testing.T) {
 	got := sync.PullRsyncExcludes()
-	want := []string{"--exclude=.filter-staged", "--exclude=.filter"}
+	want := []string{"--exclude=.cell-staged", "--exclude=.cell"}
 	if len(got) != len(want) {
 		t.Fatalf("PullRsyncExcludes() = %q, want %q", got, want)
 	}

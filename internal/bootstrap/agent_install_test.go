@@ -15,10 +15,10 @@ func TestSquashfsBuildStampIncludesAgentKind(t *testing.T) {
 		agent string
 		want  string
 	}{
-		{"opencode", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+agent:opencode"},
-		{"claude", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+agent:claude"},
-		{"none", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+agent:none"},
-		{"", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+agent:opencode"},
+		{"opencode", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:opencode"},
+		{"claude", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:claude"},
+		{"none", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:none"},
+		{"", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:opencode"},
 	}
 	for _, c := range cases {
 		cfg := &config.CellConfig{CellAgent: c.agent}

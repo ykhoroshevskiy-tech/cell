@@ -19,7 +19,7 @@ var unsafeDests = map[string]bool{
 }
 
 func PullRsyncExcludes() []string {
-	return []string{"--exclude=.filter-staged", "--exclude=.filter"}
+	return []string{"--exclude=.cell-staged", "--exclude=.cell"}
 }
 
 func ValidateDest(dest string) error {

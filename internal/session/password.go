@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	GuestPasswordRel  = ".filter/opencode-server.pass"
-	GuestServePortRel = ".filter/opencode-serve.port"
-	GuestAgentKindRel = ".filter/agent.kind"
+	GuestPasswordRel  = ".cell/opencode-server.pass"
+	GuestServePortRel = ".cell/opencode-serve.port"
+	GuestAgentKindRel = ".cell/agent.kind"
 )
 
 func ServerPasswordPath(sessionDir string) string {

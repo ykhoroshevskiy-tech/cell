@@ -1,5 +1,5 @@
-.filter/
-.filter-staged
+.cell/
+.cell-staged
 lost+found/
 /cell
 /docs/

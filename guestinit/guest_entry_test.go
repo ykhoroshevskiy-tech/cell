@@ -5,19 +5,19 @@ import (
 	"testing"
 )
 
-func TestGuestEntryIgnoresFilterInGitignore(t *testing.T) {
+func TestGuestEntryIgnoresCellInGitignore(t *testing.T) {
 	data, err := Scripts.ReadFile("guest-entry.sh")
 	if err != nil {
 		t.Fatal(err)
 	}
 	script := string(data)
 	for _, want := range []string{
-		"ensure_filter_gitignore",
-		".filter/",
+		"ensure_cell_gitignore",
+		".cell/",
 		"setup_usr_local_rw",
-		".filter/usr-local",
+		".cell/usr-local",
 		"mount --bind",
-		".filter/opencode.json",
+		".cell/opencode.json",
 		"WARN: failed to copy host opencode.json; using default",
 	} {
 		if !strings.Contains(script, want) {
@@ -48,7 +48,7 @@ func TestGuestEntryAgentKindDispatch(t *testing.T) {
 	}
 	script := string(data)
 	for _, want := range []string{
-		".filter/agent.kind",
+		".cell/agent.kind",
 		`AGENT_KIND="${AGENT_KIND:-opencode}"`,
 		`[ "${AGENT_KIND}" = "claude" ]`,
 		`[ "${AGENT_KIND}" = "none" ]`,
@@ -99,8 +99,8 @@ func TestGuestEntryOpencodeBranchUnchanged(t *testing.T) {
 	}
 	script := string(data)
 	for _, want := range []string{
-		".filter/opencode-server.pass",
-		".filter/opencode-serve.port",
+		".cell/opencode-server.pass",
+		".cell/opencode-serve.port",
 		"/run/opencode.env",
 		"exec opencode serve --hostname 127.0.0.1 --port ${SERVE_PORT}",
 	} {

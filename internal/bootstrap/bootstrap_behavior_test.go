@@ -59,7 +59,7 @@ func TestSquashfsBuildStampUsesNodePin(t *testing.T) {
 		NodeVersion: "v24.18.0",
 	}
 
-	if got := rootfsBuildStamp(cfg); got != "debootstrap:noble+apt+node:v24.18.0+uv:0.12.7+py:3.13+sp:off+agent:opencode" {
+	if got := rootfsBuildStamp(cfg); got != "debootstrap:noble+apt+node:v24.18.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:opencode" {
 		t.Fatalf("rootfsBuildStamp() = %q", got)
 	}
 }
@@ -70,7 +70,7 @@ func TestSquashfsBuildStampIncludesUvAndPython(t *testing.T) {
 		UvVersion:     "0.12.7",
 		PythonVersion: "3.13",
 	}
-	want := "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+agent:opencode"
+	want := "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:opencode"
 	if got := rootfsBuildStamp(cfg); got != want {
 		t.Fatalf("rootfsBuildStamp() = %q, want %q", got, want)
 	}
