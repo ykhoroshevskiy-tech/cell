@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
+	"strings"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -243,4 +245,38 @@ func downloadOnce(dst string, art Artifact) error {
 func ensureSymlink(link, target string) error {
 	_ = os.Remove(link)
 	return os.Symlink(target, link)
+}
+
+// curlDownloadRetry fetches url into dst via curl (atomic rename), up to attempts times.
+func curlDownloadRetry(dst, url string, attempts int) error {
+	backoffs := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
+	var lastErr error
+	tmp := dst + ".tmp"
+	for i := 0; i < attempts; i++ {
+		if i > 0 {
+			fmt.Printf("  retry %d/%d after %v…\n", i+1, attempts, backoffs[i-1])
+			time.Sleep(backoffs[i-1])
+		}
+		_ = os.Remove(tmp)
+		cmd := exec.Command("curl", "-fsSL", "--connect-timeout", "15", "--max-time", "120",
+			"-o", tmp, url)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			lastErr = fmt.Errorf("curl: %w\n%s", err, strings.TrimSpace(string(out)))
+			_ = os.Remove(tmp)
+			continue
+		}
+		if st, err := os.Stat(tmp); err != nil || st.Size() == 0 {
+			lastErr = fmt.Errorf("curl wrote empty file")
+			_ = os.Remove(tmp)
+			continue
+		}
+		if err := os.Rename(tmp, dst); err != nil {
+			return err
+		}
+		st, _ := os.Stat(dst)
+		fmt.Printf("  downloaded %s (%s)\n", dst, humanSize(st.Size()))
+		return nil
+	}
+	return fmt.Errorf("failed after %d attempts: %w", attempts, lastErr)
 }
