@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/ykhoroshevskiy-tech/cell/internal/bootstrap"
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 	"github.com/ykhoroshevskiy-tech/cell/internal/ssh"
 	"github.com/ykhoroshevskiy-tech/cell/internal/sync"
@@ -38,6 +39,9 @@ func StartPreflight(session *models.SessionRecord, vmRunning bool) error {
 func (sm *SessionManager) Start(ctx context.Context, sessionID string, attach bool) error {
 	session, err := sm.loadSession(sessionID)
 	if err != nil {
+		return err
+	}
+	if err := bootstrap.CheckRootfsAgentKind(sm.cfg.RootfsPath, session.EffectiveAgent()); err != nil {
 		return err
 	}
 	if err := StartPreflight(session, ssh.VMRunningForSession(session)); err != nil {

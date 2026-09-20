@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/ykhoroshevskiy-tech/cell/internal/bootstrap"
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
 	"github.com/ykhoroshevskiy-tech/cell/internal/hypervisor"
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
@@ -34,16 +35,19 @@ func NewSessionManager(cfg *config.CellConfig) (*SessionManager, error) {
 }
 
 func (sm *SessionManager) Launch(ctx context.Context, repoPath, agentConfigPath string, attach bool, agentKind string) (*models.SessionRecord, error) {
+	kind := models.NormalizeAgentKind(agentKind)
+	if kind == "" {
+		return nil, fmt.Errorf("invalid agent kind %q (want opencode|claude|none)", agentKind)
+	}
+	if err := bootstrap.CheckRootfsAgentKind(sm.cfg.RootfsPath, kind); err != nil {
+		return nil, err
+	}
 	verbose.V("launch: preparing session for %s", repoPath)
 	session, err := sm.prepareSession(repoPath)
 	if err != nil {
 		return nil, err
 	}
-	if kind := models.NormalizeAgentKind(agentKind); kind == "" {
-		return nil, fmt.Errorf("invalid agent kind %q (want opencode|claude|none)", agentKind)
-	} else {
-		session.Agent = kind
-	}
+	session.Agent = kind
 	session.AgentConfigPath = agentConfigPath
 	if _, err := WriteServerPassword(session.SessionDir); err != nil {
 		return nil, err

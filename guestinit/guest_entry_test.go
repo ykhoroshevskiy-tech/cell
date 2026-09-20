@@ -110,6 +110,27 @@ func TestGuestEntryOpencodeBranchUnchanged(t *testing.T) {
 	}
 }
 
+func TestGuestEntryTmuxFailureEmitsFatalError(t *testing.T) {
+	data, err := Scripts.ReadFile("guest-entry.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	script := string(data)
+	for _, want := range []string{
+		`log "ERROR: tmux session ${TMUX_SESSION} failed for agent ${AGENT_KIND}"`,
+		`log "runtime degraded: ssh only (tmux failed)"`,
+	} {
+		if !strings.Contains(script, want) {
+			t.Fatalf("guest-entry.sh missing tmux failure marker %q", want)
+		}
+	}
+	noneIdx := strings.Index(script, "ssh-only runtime, no tmux boot")
+	fatalIdx := strings.Index(script, "ERROR: tmux session")
+	if noneIdx < 0 || fatalIdx < 0 || noneIdx > fatalIdx {
+		t.Fatal("agent none must return before the fatal tmux error log")
+	}
+}
+
 func TestGuestEntryNoneBranchSkipsTmuxBoot(t *testing.T) {
 	data, err := Scripts.ReadFile("guest-entry.sh")
 	if err != nil {

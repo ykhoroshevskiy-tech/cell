@@ -1,13 +1,32 @@
 package session
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/ykhoroshevskiy-tech/cell/internal/config"
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 )
+
+func TestLaunchRejectsRootfsAgentMismatchBeforeStaging(t *testing.T) {
+	dir := t.TempDir()
+	rootfs := filepath.Join(dir, "rootfs.ext4")
+	if err := os.WriteFile(rootfs, []byte("rootfs"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(rootfs+".build-stamp", []byte("debootstrap:noble+agent:opencode\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	sm := &SessionManager{cfg: &config.CellConfig{RootfsPath: rootfs}}
+	_, err := sm.Launch(context.Background(), dir, "", false, models.AgentKindClaude)
+	if err == nil || !strings.Contains(err.Error(), `rootfs built for agent "opencode"`) {
+		t.Fatalf("err=%v", err)
+	}
+}
 
 func TestStartPreflightMissingDisk(t *testing.T) {
 	s := &models.SessionRecord{ProjectDiskPath: filepath.Join(t.TempDir(), "nope.ext4")}

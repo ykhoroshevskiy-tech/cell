@@ -78,3 +78,75 @@ func TestFindAgentBinaryMissing(t *testing.T) {
 		t.Fatal("expected error when binary missing in tarball")
 	}
 }
+
+func TestInstallClaudeFromNpmLayout(t *testing.T) {
+	work := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(work, "package"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(work, "package", "cli.js"), []byte("// cli"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	tarball := filepath.Join(t.TempDir(), "claude-code.tgz")
+	if out, err := exec.Command("tar", "-czf", tarball, "-C", work, "package").CombinedOutput(); err != nil {
+		t.Fatalf("fabricate tarball: %v\n%s", err, out)
+	}
+	extract := t.TempDir()
+	if out, err := exec.Command("tar", "-xzf", tarball, "-C", extract).CombinedOutput(); err != nil {
+		t.Fatalf("extract tarball: %v\n%s", err, out)
+	}
+
+	root := t.TempDir()
+	if err := installClaudeFromExtract(root, extract); err != nil {
+		t.Fatalf("installClaudeFromExtract: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "opt", "agent", "claude-code", "cli.js")); err != nil {
+		t.Fatalf("package tree not installed: %v", err)
+	}
+	wrapper := filepath.Join(root, "usr", "local", "bin", "claude")
+	st, err := os.Stat(wrapper)
+	if err != nil {
+		t.Fatalf("wrapper missing: %v", err)
+	}
+	if st.Mode().Perm() != 0755 {
+		t.Fatalf("wrapper mode = %v want 0755", st.Mode().Perm())
+	}
+	body, err := os.ReadFile(wrapper)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != "#!/bin/sh\nexec node /opt/agent/claude-code/cli.js \"$@\"\n" {
+		t.Fatalf("wrapper body = %q", body)
+	}
+}
+
+func TestInstallOpencodeFromRootLayout(t *testing.T) {
+	work := t.TempDir()
+	if err := os.WriteFile(filepath.Join(work, "opencode"), []byte("fake"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	tarball := filepath.Join(t.TempDir(), "opencode.tgz")
+	if out, err := exec.Command("tar", "-czf", tarball, "-C", work, "opencode").CombinedOutput(); err != nil {
+		t.Fatalf("fabricate tarball: %v\n%s", err, out)
+	}
+	extract := t.TempDir()
+	if out, err := exec.Command("tar", "-xzf", tarball, "-C", extract).CombinedOutput(); err != nil {
+		t.Fatalf("extract tarball: %v\n%s", err, out)
+	}
+
+	root := t.TempDir()
+	if err := installOpencodeFromExtract(root, extract, "opencode"); err != nil {
+		t.Fatalf("installOpencodeFromExtract: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "opt", "agent", "bin", "opencode")); err != nil {
+		t.Fatalf("binary not installed: %v", err)
+	}
+	link := filepath.Join(root, "usr", "local", "bin", "opencode")
+	target, err := os.Readlink(link)
+	if err != nil {
+		t.Fatalf("symlink missing: %v", err)
+	}
+	if target != "/opt/agent/bin/opencode" {
+		t.Fatalf("symlink target = %q", target)
+	}
+}

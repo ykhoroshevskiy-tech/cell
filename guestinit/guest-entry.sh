@@ -265,6 +265,7 @@ EOF
       log "  ${line}"
     done < "${ERR}"
   fi
+  log "ERROR: tmux session ${TMUX_SESSION} failed for agent ${AGENT_KIND}"
   return 1
 }
 
