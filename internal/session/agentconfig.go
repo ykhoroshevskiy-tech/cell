@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 )
 
-const GuestAgentConfigRel = ".filter/opencode.json"
+const GuestAgentConfigRel = ".cell/opencode.json"
 
 func ResolveAgentConfig(path string) (string, string, error) {
 	if path == "" {

@@ -31,13 +31,13 @@ mount_project() {
     }
   fi
   log "project mounted at ${MOUNT}"
-  if [ ! -f "${REPO_DIR}/.filter-staged" ]; then
+  if [ ! -f "${REPO_DIR}/.cell-staged" ]; then
     log "ERROR: project marker missing in ${REPO_DIR}"
     exit 1
   fi
   log "project marker ok"
   AGENT_KIND="opencode"
-  KIND_FILE="${REPO_DIR}/.filter/agent.kind"
+  KIND_FILE="${REPO_DIR}/.cell/agent.kind"
   if [ -s "${KIND_FILE}" ]; then
     AGENT_KIND="$(cat "${KIND_FILE}")"
   fi
@@ -79,9 +79,9 @@ setup_runtime_dirs() {
 }
 
 setup_dns() {
-  DNS_SRC="${MOUNT}/.filter/resolv.conf"
+  DNS_SRC="${MOUNT}/.cell/resolv.conf"
   if [ ! -f "${DNS_SRC}" ]; then
-    DNS_SRC="/run/filter-resolv.conf"
+    DNS_SRC="/run/cell-resolv.conf"
     cat > "${DNS_SRC}" <<EOF
 nameserver 1.1.1.1
 nameserver 8.8.8.8
@@ -96,28 +96,28 @@ EOF
   fi
 }
 
-ensure_filter_gitignore() {
+ensure_cell_gitignore() {
   GI="${REPO_DIR}/.gitignore"
-  if [ -f "${GI}" ] && grep -qxE '\.filter(/)?' "${GI}"; then
+  if [ -f "${GI}" ] && grep -qxE '\.cell(/)?' "${GI}"; then
     return 0
   fi
   if [ ! -f "${GI}" ]; then
-    printf '%s\n' '.filter/' > "${GI}"
+    printf '%s\n' '.cell/' > "${GI}"
   else
-    printf '\n%s\n' '.filter/' >> "${GI}"
+    printf '\n%s\n' '.cell/' >> "${GI}"
   fi
   chown "${AGENT_USER}:${AGENT_USER}" "${GI}" 2>/dev/null || true
 }
 
 setup_agent_home() {
   AGENT_HOME="/home/${AGENT_USER}"
-  RW="${MOUNT}/.filter/agent-home"
+  RW="${MOUNT}/.cell/agent-home"
   if [ "${AGENT_KIND}" = "opencode" ]; then
     mkdir -p "${RW}/.cache" "${RW}/.config/opencode" "${RW}/.local/share"
     CFG="${RW}/.config/opencode/opencode.json"
-    if [ -f "${MOUNT}/.filter/opencode.json" ]; then
-      if cp "${MOUNT}/.filter/opencode.json" "${CFG}"; then
-        log "agent config from host .filter/opencode.json"
+    if [ -f "${MOUNT}/.cell/opencode.json" ]; then
+      if cp "${MOUNT}/.cell/opencode.json" "${CFG}"; then
+        log "agent config from host .cell/opencode.json"
       else
         log "WARN: failed to copy host opencode.json; using default"
       fi
@@ -176,7 +176,7 @@ EOF
 # Rootfs is read-only; /usr/local is bind-mounted from the project disk so
 # the agent can npm-install into /usr/local/bin. Seeded once from the rootfs.
 setup_usr_local_rw() {
-  RW="${MOUNT}/.filter/usr-local"
+  RW="${MOUNT}/.cell/usr-local"
   mkdir -p "${RW}"
   if [ ! -f "${RW}/.seeded" ]; then
     cp -a /usr/local/. "${RW}/"
@@ -190,7 +190,7 @@ setup_usr_local_rw() {
 }
 
 setup_ssh() {
-  AUTH_SRC="${MOUNT}/.filter/authorized_keys"
+  AUTH_SRC="${MOUNT}/.cell/authorized_keys"
   if [ ! -f "${AUTH_SRC}" ]; then
     log "ERROR: missing ${AUTH_SRC}"
     exit 1
@@ -219,8 +219,8 @@ start_tmux_session() {
        exec claude --dangerously-skip-permissions'
   "
   else
-    PASS_FILE="${REPO_DIR}/.filter/opencode-server.pass"
-    PORT_FILE="${REPO_DIR}/.filter/opencode-serve.port"
+    PASS_FILE="${REPO_DIR}/.cell/opencode-server.pass"
+    PORT_FILE="${REPO_DIR}/.cell/opencode-serve.port"
     SERVE_PORT=4096
     if [ -s "${PORT_FILE}" ]; then
       SERVE_PORT=$(cat "${PORT_FILE}")
@@ -269,7 +269,7 @@ EOF
 }
 
 mount_project
-ensure_filter_gitignore
+ensure_cell_gitignore
 chown_repo
 setup_runtime_dirs
 setup_dns

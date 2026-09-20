@@ -164,14 +164,14 @@ func (sm *SessionManager) buildDisk(session *models.SessionRecord) error {
 	}
 	defer func() { _ = os.RemoveAll(rootDir) }()
 
-	filterDir := filepath.Join(rootDir, ".filter")
+	cellDir := filepath.Join(rootDir, ".cell")
 	if err := stage.StageRepository(session.StagedRepoDir, rootDir, true, nil); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filterDir, 0700); err != nil {
+	if err := os.MkdirAll(cellDir, 0700); err != nil {
 		return err
 	}
-	if err := os.WriteFile(filepath.Join(rootDir, ".filter-staged"), []byte("ok\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(rootDir, ".cell-staged"), []byte("ok\n"), 0644); err != nil {
 		return err
 	}
 
@@ -182,7 +182,7 @@ func (sm *SessionManager) buildDisk(session *models.SessionRecord) error {
 	if len(pub) == 0 {
 		return fmt.Errorf("authorized_keys would be empty")
 	}
-	if err := os.WriteFile(filepath.Join(filterDir, "authorized_keys"), pub, 0600); err != nil {
+	if err := os.WriteFile(filepath.Join(cellDir, "authorized_keys"), pub, 0600); err != nil {
 		return err
 	}
 	if err := CopyPasswordToDiskRoot(session.SessionDir, rootDir); err != nil {

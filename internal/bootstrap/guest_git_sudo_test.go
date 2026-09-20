@@ -99,7 +99,7 @@ func TestRootfsSizeMBIndependentOfProjectDisk(t *testing.T) {
 
 func TestSquashfsBuildStampIncludesNodeVersion(t *testing.T) {
 	cfg := &config.CellConfig{NodeVersion: "v24.20.0"}
-	want := "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+agent:opencode"
+	want := "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:opencode"
 	if got := rootfsBuildStamp(cfg); got != want {
 		t.Fatalf("rootfsBuildStamp() = %q, want %q", got, want)
 	}
