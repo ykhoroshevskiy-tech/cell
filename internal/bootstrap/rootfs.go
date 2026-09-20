@@ -199,7 +199,7 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 		fmt.Println("agent install skipped")
 	} else {
 		fmt.Printf("installing agent %q (host download)…\n", cfg.AgentBin)
-		if err := installAgentHostSide(root, imagesDir, cfg.AgentURL, cfg.AgentBin); err != nil {
+		if err := installAgentHostSide(root, imagesDir, cfg.AgentURL, cfg.AgentBin, agentKind); err != nil {
 			fmt.Printf("  agent download failed: %v; installing stub\n", err)
 			writeAgentStub(root, cfg.AgentBin)
 		}

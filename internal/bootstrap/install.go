@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+
+	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 )
 
 func agentDownloadTarget() (string, error) {
@@ -19,7 +21,7 @@ func agentDownloadTarget() (string, error) {
 	}
 }
 
-func installAgentHostSide(root, imagesDir, urlTemplate, binName string) error {
+func installAgentHostSide(root, imagesDir, urlTemplate, binName, kind string) error {
 	if binName == "" {
 		return fmt.Errorf("agent_bin is empty")
 	}
@@ -50,7 +52,17 @@ func installAgentHostSide(root, imagesDir, urlTemplate, binName string) error {
 		_ = os.Remove(cache) // corrupt cache → refetch next time
 		return fmt.Errorf("extract agent: %w", err)
 	}
-	src, err := findAgentBinary(tmp, binName)
+	if models.NormalizeAgentKind(kind) == models.AgentKindClaude {
+		return installClaudeFromExtract(root, tmp)
+	}
+	return installOpencodeFromExtract(root, tmp, binName)
+}
+
+// installOpencodeFromExtract installs the opencode tarball layout: a single
+// binary named binName at the tarball root, exposed at /opt/agent/bin and
+// symlinked from /usr/local/bin.
+func installOpencodeFromExtract(root, tmpDir, binName string) error {
+	src, err := findAgentBinary(tmpDir, binName)
 	if err != nil {
 		return err
 	}
@@ -71,6 +83,42 @@ func installAgentHostSide(root, imagesDir, urlTemplate, binName string) error {
 		return err
 	}
 	fmt.Printf("  agent %q installed\n", binName)
+	return nil
+}
+
+// installClaudeFromExtract installs the npm tarball layout used by
+// @anthropic-ai/claude-code: the package tree lands under
+// /opt/agent/claude-code and /usr/local/bin/claude becomes a node wrapper.
+func installClaudeFromExtract(root, tmpDir string) error {
+	pkg := filepath.Join(tmpDir, "package")
+	cli := filepath.Join(pkg, "cli.js")
+	if st, err := os.Stat(cli); err != nil || st.IsDir() {
+		return fmt.Errorf("claude tarball missing package/cli.js")
+	}
+	dst := filepath.Join(root, "opt", "agent", "claude-code")
+	if err := os.RemoveAll(dst); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+	if err := runCmd("cp", "-a", pkg, dst); err != nil {
+		return fmt.Errorf("install claude package: %w", err)
+	}
+	binDir := filepath.Join(root, "usr", "local", "bin")
+	if err := os.MkdirAll(binDir, 0755); err != nil {
+		return err
+	}
+	wrapper := filepath.Join(binDir, "claude")
+	_ = os.Remove(wrapper)
+	body := "#!/bin/sh\nexec node /opt/agent/claude-code/cli.js \"$@\"\n"
+	if err := os.WriteFile(wrapper, []byte(body), 0755); err != nil {
+		return err
+	}
+	if err := os.Chmod(wrapper, 0755); err != nil {
+		return err
+	}
+	fmt.Printf("  agent %q installed\n", "claude")
 	return nil
 }
 

@@ -21,9 +21,11 @@ func TestCheckFatal(t *testing.T) {
 		fatal bool
 	}{
 		{"[guest-init] ERROR: missing marker", true},
+		{"[guest-init] ERROR: tmux session agent failed for agent claude", true},
 		{"Kernel panic - not syncing", true},
 		{"Attempted to kill init!", true},
 		{"runtime ready", false},
+		{"runtime degraded: ssh only (tmux failed)", false},
 	}
 	for _, c := range cases {
 		got := ssh.CheckFatalForTest(c.log)
