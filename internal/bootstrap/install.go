@@ -7,8 +7,43 @@ import (
 	"runtime"
 	"strings"
 
+	"github.com/ykhoroshevskiy-tech/cell/internal/config"
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 )
+
+// agentInstall describes one agent to place into a fresh rootfs.
+type agentInstall struct {
+	kind string
+	url  string
+	bin  string
+}
+
+// agentInstalls returns every agent to install into a fresh rootfs: opencode
+// (skipped when CELL_AGENT_URL is set empty) plus claude, so any per-session
+// --agent works without rebuilding the rootfs.
+func agentInstalls(cfg *config.CellConfig) []agentInstall {
+	var installs []agentInstall
+	if strings.TrimSpace(cfg.AgentURL) != "" {
+		bin := cfg.AgentBin
+		if bin == "" {
+			bin = "opencode"
+		}
+		installs = append(installs, agentInstall{kind: models.AgentKindOpenCode, url: cfg.AgentURL, bin: bin})
+	}
+	return append(installs, agentInstall{kind: models.AgentKindClaude, url: config.DefaultClaudeAgentURL(), bin: "claude"})
+}
+
+// installAgentsHostSide downloads and installs every agent; a failed download
+// leaves that agent's stub in place so the rootfs stays bootable.
+func installAgentsHostSide(root, imagesDir string, cfg *config.CellConfig) {
+	for _, ai := range agentInstalls(cfg) {
+		fmt.Printf("installing agent %q (host download)…\n", ai.bin)
+		if err := installAgentHostSide(root, imagesDir, ai.url, ai.bin, ai.kind); err != nil {
+			fmt.Printf("  agent download failed: %v; installing stub\n", err)
+			writeAgentStub(root, ai.bin)
+		}
+	}
+}
 
 func agentDownloadTarget() (string, error) {
 	switch runtime.GOARCH {

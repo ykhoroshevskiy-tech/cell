@@ -98,8 +98,7 @@ func newLaunchCmd(cfg *config.CellConfig) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&repo, "repo", "", "Source repository directory")
-	agentKind = cfg.CellAgent
-	cmd.Flags().StringVar(&agentKind, "agent", agentKind, "In-guest agent: opencode | claude | none")
+	cmd.Flags().StringVar(&agentKind, "agent", models.AgentKindOpenCode, "In-guest agent: opencode | claude | none")
 	cmd.Flags().StringVar(&configPath, "config", "", "OpenCode JSON for guest ~/.config/opencode/opencode.json")
 	cmd.Flags().BoolVar(&noAttach, "no-attach", false, "Wait for ready but do not exec SSH")
 	_ = cmd.MarkFlagRequired("repo")

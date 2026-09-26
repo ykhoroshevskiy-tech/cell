@@ -16,6 +16,7 @@ func TestParseRootfsAgentKind(t *testing.T) {
 		{"debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+agent:opencode", "opencode", true},
 		{"debootstrap:noble+agent:claude", "claude", true},
 		{"debootstrap:noble+agent:none", "none", true},
+		{"debootstrap:noble+agent:all", "all", true},
 		{"debootstrap:noble", "", false},
 		{"", "", false},
 		{"agent:bogus", "", false},
@@ -49,8 +50,16 @@ func TestCheckRootfsAgentKind(t *testing.T) {
 		t.Fatalf("matching opencode: %v", err)
 	}
 	err := CheckRootfsAgentKind(opencode, "claude")
-	if err == nil || err.Error() != `rootfs built for agent "opencode"; run: CELL_AGENT=claude sudo cell bootstrap` {
+	if err == nil || err.Error() != `rootfs built for agent "opencode"; run: sudo cell bootstrap --rebuild-rootfs` {
 		t.Fatalf("mismatch err=%v", err)
+	}
+
+	all := writeStamp(t, "debootstrap:noble+agent:all")
+	if err := CheckRootfsAgentKind(all, "opencode"); err != nil {
+		t.Fatalf("all-opencode: %v", err)
+	}
+	if err := CheckRootfsAgentKind(all, "claude"); err != nil {
+		t.Fatalf("all-claude: %v", err)
 	}
 
 	legacy := writeStamp(t, "")

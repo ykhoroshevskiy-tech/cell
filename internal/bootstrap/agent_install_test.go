@@ -7,29 +7,16 @@ import (
 	"testing"
 
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
-	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 )
 
-func TestSquashfsBuildStampIncludesAgentKind(t *testing.T) {
-	cases := []struct {
-		agent string
-		want  string
-	}{
-		{"opencode", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:opencode"},
-		{"claude", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:claude"},
-		{"none", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:none"},
-		{"", "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:opencode"},
+func TestSquashfsBuildStampIncludesAllAgents(t *testing.T) {
+	want := "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:off+layout:cell+agent:all"
+	if got := rootfsBuildStamp(&config.CellConfig{}); got != want {
+		t.Fatalf("rootfsBuildStamp() = %q want %q", got, want)
 	}
-	for _, c := range cases {
-		cfg := &config.CellConfig{CellAgent: c.agent}
-		if got := rootfsBuildStamp(cfg); got != c.want {
-			t.Fatalf("rootfsBuildStamp(agent=%q) = %q want %q", c.agent, got, c.want)
-		}
-	}
-	opencode := rootfsBuildStamp(&config.CellConfig{CellAgent: models.AgentKindOpenCode})
-	claude := rootfsBuildStamp(&config.CellConfig{CellAgent: models.AgentKindClaude})
-	if opencode == claude {
-		t.Fatal("stamp must differ between agent kinds (forces rebuild)")
+	withSP := rootfsBuildStamp(&config.CellConfig{InstallSuperpowers: true})
+	if withSP != "debootstrap:noble+apt+node:v24.20.0+uv:0.12.7+py:3.13+sp:on+layout:cell+agent:all" {
+		t.Fatalf("rootfsBuildStamp(superpowers) = %q", withSP)
 	}
 }
 

@@ -1,19 +1,20 @@
 package config
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/ykhoroshevskiy-tech/cell/internal/models"
-)
+const defaultOpencodeURL = "https://github.com/anomalyco/opencode/releases/latest/download/opencode-{target}.tar.gz"
 
-func TestLoadCellAgentDefault(t *testing.T) {
-	t.Setenv("CELL_AGENT", "")
+func TestLoadAgentDefaults(t *testing.T) {
+	t.Setenv("CELL_AGENT_BIN", "")
+	t.Setenv("CELL_AGENT_SERVE_PORT", "")
+	t.Setenv("CELL_HOST_AGENT_BIN", "")
+
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
-	if cfg.CellAgent != models.AgentKindOpenCode {
-		t.Fatalf("CellAgent = %q want opencode", cfg.CellAgent)
+	if cfg.AgentURL != defaultOpencodeURL {
+		t.Fatalf("AgentURL = %q want %q", cfg.AgentURL, defaultOpencodeURL)
 	}
 	if cfg.AgentBin != "opencode" || cfg.HostAgentBin != "opencode" {
 		t.Fatalf("opencode defaults drifted: bin=%q host=%q", cfg.AgentBin, cfg.HostAgentBin)
@@ -23,63 +24,22 @@ func TestLoadCellAgentDefault(t *testing.T) {
 	}
 }
 
-func TestLoadCellAgentDispatch(t *testing.T) {
-	cases := []struct {
-		env string
-	}{
-		{models.AgentKindOpenCode},
-		{models.AgentKindClaude},
-		{models.AgentKindNone},
-	}
-	for _, c := range cases {
-		t.Setenv("CELL_AGENT", c.env)
-		cfg, err := Load()
-		if err != nil {
-			t.Fatalf("CELL_AGENT=%s: Load() error = %v", c.env, err)
-		}
-		if cfg.CellAgent != c.env {
-			t.Fatalf("CELL_AGENT=%s: CellAgent = %q", c.env, cfg.CellAgent)
-		}
-		wantURL := "https://github.com/anomalyco/opencode/releases/latest/download/opencode-{target}.tar.gz"
-		if c.env == models.AgentKindClaude {
-			wantURL = defaultClaudeAgentURL()
-		}
-		if cfg.AgentURL != wantURL {
-			t.Fatalf("CELL_AGENT=%s: AgentURL = %q want %q", c.env, cfg.AgentURL, wantURL)
-		}
-	}
-}
-
-func TestLoadCellAgentClaudeDefaults(t *testing.T) {
+func TestLoadCellAgentEnvIgnored(t *testing.T) {
 	t.Setenv("CELL_AGENT", "claude")
-	t.Setenv("CELL_AGENT_SERVE_PORT", "")
-	t.Setenv("CELL_HOST_AGENT_BIN", "")
-
 	cfg, err := Load()
 	if err != nil {
-		t.Fatalf("Load() error = %v", err)
+		t.Fatalf("Load() error = %v (removed CELL_AGENT must be ignored)", err)
 	}
-	if cfg.CellAgent != "claude" {
-		t.Fatalf("CellAgent = %q want claude", cfg.CellAgent)
+	if cfg.AgentURL != defaultOpencodeURL {
+		t.Fatalf("removed CELL_AGENT must not affect AgentURL: %q", cfg.AgentURL)
 	}
-	wantURL := "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-" + claudeCodeVersion + ".tgz"
-	if cfg.AgentURL != wantURL {
-		t.Fatalf("AgentURL = %q want %q", cfg.AgentURL, wantURL)
-	}
-	if cfg.AgentBin != "claude" {
-		t.Fatalf("AgentBin = %q want claude", cfg.AgentBin)
-	}
-	if cfg.AgentServePort != 0 {
-		t.Fatalf("AgentServePort = %d want 0", cfg.AgentServePort)
-	}
-	if cfg.HostAgentBin != "claude" {
-		t.Fatalf("HostAgentBin = %q want claude", cfg.HostAgentBin)
+	if cfg.AgentBin != "opencode" {
+		t.Fatalf("removed CELL_AGENT must not affect AgentBin: %q", cfg.AgentBin)
 	}
 }
 
 func TestLoadCellAgentURLOverride(t *testing.T) {
-	t.Setenv("CELL_AGENT", "claude")
-	custom := "https://example.com/claude/claude.tgz"
+	custom := "https://example.com/opencode.tgz"
 	t.Setenv("CELL_AGENT_URL", custom)
 	cfg, err := Load()
 	if err != nil {
@@ -88,22 +48,33 @@ func TestLoadCellAgentURLOverride(t *testing.T) {
 	if cfg.AgentURL != custom {
 		t.Fatalf("AgentURL = %q want custom override honored", cfg.AgentURL)
 	}
+}
 
-	t.Setenv("CELL_AGENT", "")
-	t.Setenv("CELL_AGENT_URL", custom)
-	cfg, err = Load()
+func TestLoadCellAgentURLEmptySkipsInstall(t *testing.T) {
+	t.Setenv("CELL_AGENT_URL", "")
+	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.AgentURL != custom {
-		t.Fatalf("AgentURL override must be kind-independent: %q", cfg.AgentURL)
+	if cfg.AgentURL != "" {
+		t.Fatalf("AgentURL = %q want empty (skip install)", cfg.AgentURL)
 	}
 }
 
-func TestLoadCellAgentInvalid(t *testing.T) {
-	t.Setenv("CELL_AGENT", "cursor")
-	_, err := Load()
-	if err == nil {
-		t.Fatal("expected error for invalid CELL_AGENT")
+func TestLoadCellAgentBinOverride(t *testing.T) {
+	t.Setenv("CELL_AGENT_BIN", "my-opencode")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.AgentBin != "my-opencode" {
+		t.Fatalf("AgentBin = %q want my-opencode", cfg.AgentBin)
+	}
+}
+
+func TestDefaultClaudeAgentURL(t *testing.T) {
+	want := "https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-" + claudeCodeVersion + ".tgz"
+	if got := DefaultClaudeAgentURL(); got != want {
+		t.Fatalf("DefaultClaudeAgentURL() = %q want %q", got, want)
 	}
 }

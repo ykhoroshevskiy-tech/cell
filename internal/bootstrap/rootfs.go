@@ -10,7 +10,6 @@ import (
 
 	"github.com/ykhoroshevskiy-tech/cell/guestinit"
 	"github.com/ykhoroshevskiy-tech/cell/internal/config"
-	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 	"github.com/ykhoroshevskiy-tech/cell/internal/verbose"
 )
 
@@ -35,11 +34,7 @@ func rootfsBuildStamp(cfg *config.CellConfig) string {
 	if cfg.InstallSuperpowers {
 		sp = "on"
 	}
-	agent := models.NormalizeAgentKind(cfg.CellAgent)
-	if agent == "" {
-		agent = models.AgentKindOpenCode
-	}
-	return "debootstrap:noble+apt+node:" + node + "+uv:" + uv + "+py:" + py + "+sp:" + sp + "+layout:cell+agent:" + agent
+	return "debootstrap:noble+apt+node:" + node + "+uv:" + uv + "+py:" + py + "+sp:" + sp + "+layout:cell+agent:" + AgentStampAll
 }
 
 func needsRootfsRebuild(rootfsPath, expectedStamp string, rebuildRequested bool) (bool, error) {
@@ -191,19 +186,7 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 		return fmt.Errorf("chroot customize: %w", err)
 	}
 
-	agentKind := models.NormalizeAgentKind(cfg.CellAgent)
-	if agentKind == "" {
-		agentKind = models.AgentKindOpenCode
-	}
-	if agentKind == models.AgentKindNone || strings.TrimSpace(cfg.AgentURL) == "" {
-		fmt.Println("agent install skipped")
-	} else {
-		fmt.Printf("installing agent %q (host download)…\n", cfg.AgentBin)
-		if err := installAgentHostSide(root, imagesDir, cfg.AgentURL, cfg.AgentBin, agentKind); err != nil {
-			fmt.Printf("  agent download failed: %v; installing stub\n", err)
-			writeAgentStub(root, cfg.AgentBin)
-		}
-	}
+	installAgentsHostSide(root, imagesDir, cfg)
 
 	// Unmount before mkfs.ext4 -d — populate must not walk mounted /proc,/sys,/dev,/tmp.
 	for i := len(mountDsts) - 1; i >= 0; i-- {

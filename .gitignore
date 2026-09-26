@@ -5,3 +5,5 @@ lost+found/
 /docs/
 *.out
 coverage.out
+
+.filter/

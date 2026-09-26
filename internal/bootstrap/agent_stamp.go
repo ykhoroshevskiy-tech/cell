@@ -8,6 +8,10 @@ import (
 	"github.com/ykhoroshevskiy-tech/cell/internal/models"
 )
 
+// AgentStampAll marks a rootfs built with every supported agent installed;
+// it satisfies any per-session --agent choice except validation itself.
+const AgentStampAll = "all"
+
 // ParseRootfsAgentKind extracts the agent kind from a rootfs build stamp such
 // as "debootstrap:noble+...+agent:claude". ok is false when the stamp carries
 // no usable +agent: token (legacy rootfs).
@@ -20,6 +24,9 @@ func ParseRootfsAgentKind(stamp string) (string, bool) {
 		kind = strings.TrimSpace(kind)
 		if kind == "" {
 			return "", false
+		}
+		if kind == AgentStampAll {
+			return AgentStampAll, true
 		}
 		kind = models.NormalizeAgentKind(kind)
 		if kind == "" {
@@ -40,9 +47,10 @@ func ReadRootfsAgentKind(rootfsPath string) (string, bool) {
 	return ParseRootfsAgentKind(string(data))
 }
 
-// CheckRootfsAgentKind verifies that the rootfs at rootfsPath was built for
-// the requested agent kind. A missing or agent-less stamp is treated as a
-// legacy opencode rootfs; "none" needs no agent binary and always passes.
+// CheckRootfsAgentKind verifies that the rootfs at rootfsPath supports the
+// requested agent kind. A rootfs stamped "all" carries every agent; a missing
+// or agent-less stamp is treated as a legacy opencode rootfs; "none" needs no
+// agent binary and always passes.
 func CheckRootfsAgentKind(rootfsPath, want string) error {
 	want = models.NormalizeAgentKind(want)
 	if want == "" {
@@ -52,7 +60,7 @@ func CheckRootfsAgentKind(rootfsPath, want string) error {
 		return nil
 	}
 	built, ok := ReadRootfsAgentKind(rootfsPath)
-	if ok && built == want {
+	if ok && (built == want || built == AgentStampAll) {
 		return nil
 	}
 	if !ok && want == models.AgentKindOpenCode {
@@ -62,5 +70,5 @@ func CheckRootfsAgentKind(rootfsPath, want string) error {
 	if !ok {
 		builtLabel = "unknown"
 	}
-	return fmt.Errorf("rootfs built for agent %q; run: CELL_AGENT=%s sudo cell bootstrap", builtLabel, want)
+	return fmt.Errorf("rootfs built for agent %q; run: sudo cell bootstrap --rebuild-rootfs", builtLabel)
 }
