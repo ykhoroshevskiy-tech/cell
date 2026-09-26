@@ -16,7 +16,15 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Build (git-derived version)
-        run: ./scripts/build.sh
+        run: |
+          short_sha="$(git rev-parse --short HEAD)"
+          if desc="$(git describe --tags --first-parent 2>/dev/null)"; then
+            version="$(printf '%s' "$desc" | sed -E 's/^v//; s/(.*)-g([0-9a-f]+)$/\1+g\2/')"
+          else
+            version="0.0.0-dev+g${short_sha}"
+          fi
+          echo "cell ${version}"
+          go build -ldflags "-X github.com/ykhoroshevskiy-tech/cell/internal/version.Version=${version}" -o cell ./cmd/cell
       - name: Vet
         run: go vet ./...
       - name: Test
