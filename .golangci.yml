@@ -6,6 +6,3 @@ linters:
     - ineffassign
     - staticcheck
     - govet
-
-issues:
-  exclude-use-default: true
