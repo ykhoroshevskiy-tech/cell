@@ -76,7 +76,7 @@ func Default() *CellConfig {
 		NodeVersion:         "v24.20.0",
 		UvVersion:           "0.12.7",
 		PythonVersion:       "3.13",
-		AgentURL:            "https://github.com/anomalyco/opencode/releases/latest/download/opencode-{target}.tar.gz",
+		AgentURL:            defaultOpencodeAgentURL(),
 		AgentBin:            "opencode",
 		AgentServePort:      4096,
 		HostAgentBin:        "opencode",
@@ -95,6 +95,13 @@ func DefaultClaudeAgentURL() string {
 	return fmt.Sprintf(
 		"https://registry.npmjs.org/@anthropic-ai/claude-code/-/claude-code-%s.tgz",
 		claudeCodeVersion)
+}
+
+// defaultOpencodeAgentURL returns the release tarball URL template for the
+// opencode agent; it always tracks the latest release, {target} is replaced
+// with the host arch at install time. CELL_AGENT_URL overrides the whole URL.
+func defaultOpencodeAgentURL() string {
+	return "https://github.com/anomalyco/opencode/releases/latest/download/opencode-{target}.tar.gz"
 }
 
 func defaultExcludePatterns() []string {

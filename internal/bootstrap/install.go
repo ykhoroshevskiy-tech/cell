@@ -50,7 +50,7 @@ func agentDownloadTarget() (string, error) {
 	case "amd64":
 		return "linux-x64-baseline", nil
 	case "arm64":
-		return "linux-arm64-baseline", nil
+		return "linux-arm64", nil
 	default:
 		return "", fmt.Errorf("unsupported arch %s", runtime.GOARCH)
 	}
