@@ -20,7 +20,10 @@ host repo ◀── auto rsync ◀───┤ node/uv/python in guest
                              cell0 bridge: port isolation + NAT
 ```
 
-Tested with [OpenCode](https://github.com/sst/opencode), where the TUI runs on the host and connects over an SSH tunnel, and [Claude Code](https://github.com/anthropics/claude-code), which runs inside the guest over SSH and tmux. Each guest gets its own kernel rather than a shared namespace, so host kernel exploits and container-escape CVEs don't apply in the way they would with Docker or gVisor. Requires `/dev/kvm` and a Linux host.
+Tested with [OpenCode](https://github.com/sst/opencode), where the TUI runs on the host and connects over an SSH
+tunnel, and [Claude Code](https://github.com/anthropics/claude-code), which runs inside the guest over SSH and tmux.
+Each guest gets its own kernel rather than a shared namespace, so host kernel exploits and container-escape CVEs don't
+apply in the way they would with Docker or gVisor. Requires `/dev/kvm` and a Linux host.
 
 ## Install & quick start
 
@@ -33,9 +36,11 @@ sudo cell attach --session <id>    # reconnect TUI
 sudo cell stop --all
 ```
 
-Tagged releases ship prebuilt `cell-<ver>-linux-{amd64,arm64}` binaries from the [releases page](https://github.com/ykhoroshevskiy-tech/cell/releases).
+Tagged releases ship prebuilt `cell-<ver>-linux-{amd64,arm64}` binaries from the
+[releases page](https://github.com/ykhoroshevskiy-tech/cell/releases).
 
-Mutating commands require root and fail with `cell: <cmd> requires root — run: sudo cell <cmd>` otherwise. The VM keeps running after the TUI exits until `stop` is called. After a host reboot: `sudo cell start --session <id>`.
+Mutating commands require root and fail with `cell: <cmd> requires root — run: sudo cell <cmd>` otherwise. The VM
+keeps running after the TUI exits until `stop` is called. After a host reboot: `sudo cell start --session <id>`.
 
 ## Commands
 
@@ -52,7 +57,9 @@ Mutating commands require root and fail with `cell: <cmd> requires root — run:
 
 ## Security & threat model
 
-Protected: the agent runs only against a staged copy of the repo, on its own virtual disk. Guest kernel is separate from the host kernel (KVM). Rootfs is read-only. Guest-to-guest and guest-to-private-network traffic is dropped at the bridge and firewall.
+Protected: the agent runs only against a staged copy of the repo, on its own virtual disk. Guest kernel is separate
+from the host kernel (KVM). Rootfs is read-only. Guest-to-guest and guest-to-private-network traffic is dropped at the
+bridge and firewall.
 
 Not protected:
 
@@ -69,9 +76,12 @@ Not protected:
 | `CELL_VCPU_COUNT` / `CELL_MEM_SIZE_MIB` | `4` / `8192` |
 | `CELL_AUTO_PULL` / `CELL_AUTO_PULL_INTERVAL_SEC` | `true` / `30` |
 
-Agent selection is a launch flag, not an env var: `cell launch --agent opencode|claude|none` (default `opencode`; `claude` runs the TUI in-guest via tmux; `none` is SSH-only).
+Agent selection is a launch flag, not an env var: `cell launch --agent opencode|claude|none` (default `opencode`;
+`claude` runs the TUI in-guest via tmux; `none` is SSH-only).
 
-Kernel, Firecracker, and guest Node/uv/Python versions are pinned; `sudo cell bootstrap --rebuild-rootfs` applies changes. Host requires `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`, `debootstrap`, Go 1.26+ to build, and [OpenCode](https://github.com/sst/opencode) for the tunnelled-TUI path.
+Kernel, Firecracker, and guest Node/uv/Python versions are pinned; `sudo cell bootstrap --rebuild-rootfs` applies
+changes. Host requires `curl`, `tar`, `mkfs.ext4`, `ssh`, `rsync`, `debootstrap`, Go 1.26+ to build, and
+[OpenCode](https://github.com/sst/opencode) for the tunnelled-TUI path.
 
 ## Roadmap
 
