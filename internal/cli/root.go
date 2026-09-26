@@ -107,7 +107,7 @@ func newVersionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print version",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			cmd.Printf("cell %s\n", version.Version)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "cell %s\n", version.Version)
 			return nil
 		},
 	}
